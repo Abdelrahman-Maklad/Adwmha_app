@@ -1,0 +1,65 @@
+{
+  "name": "elfajr",
+  "time": "api",
+  "default": true,
+  "deleteable": false,
+  "notifications": true,
+  "enable_disable_notifications": true,
+  "notification_time": "api",
+  "notification_sound": ".mp3",
+  "notification_text": "time for fajr prayer",
+  "color": "#7c3aed",
+  "icon": "lucid-sun icon",
+  "image": "",
+  "isCompleted": false,
+  "repeat_type": "daily",
+  "tasks": [
+    {
+      "id": "task-1",
+      "text": "sunnah el fajr",
+      "redirect": "https://www.youtube.com/watch?v=Zt9n8sXoQh0",
+      "default": true,
+      "deleteable": false,
+      "notifications": false,
+      "enable_disable_notifications": false,
+      "notification_time": "",
+      "notification_sound": "",
+      "notification_text": "",
+      "color": "#7c3aed",
+      "icon": "lucid-sun icon",
+      "image": "",
+      "isChecked": false,
+      "checklist":[],
+      "repeat": "daily"
+    },
+    {      
+      "id": "task-2",
+      "text": "salat-ul-fajr",
+      "redirect": "",
+      "default": true,
+      "deleteable": false,
+      "notifications": false,
+      "enable_disable_notifications": false,
+      "notification_time": "",
+      "notification_sound": "",
+      "notification_text": "",
+      "color": "#7c3aed",
+      "icon": "lucid-sun icon",
+      "image": "",
+      "isChecked": false,
+      "repeat": "daily",
+      "checklist":[{
+        "id": "checklist-1",
+        "text": "recite surah al-fatiha",
+        "icon": "lucid-sun icon",
+        "isChecked": false
+      },
+      {
+        "id": "checklist-2",
+        "text": "recite surah al-ikhlas",
+        "icon": "lucid-sun icon",
+        "isChecked": false
+      }]
+    }
+  ]
+}

@@ -9,10 +9,21 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@expo/metro-config": "~54.0.14",
+    "@expo/metro-runtime": "~6.1.2",
     "expo": "~54.0.33",
+    "expo-blur": "~15.0.8",
+    "expo-crypto": "~15.0.8",
+    "expo-random": "^14.0.1",
+    "expo-sqlite": "~16.0.10",
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
-    "react-native": "0.81.5"
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-get-random-values": "^2.0.0",
+    "react-native-web": "^0.21.0",
+    "rxdb": "^16.21.1",
+    "rxjs": "^7.8.2"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
