@@ -15,5 +15,12 @@ export async function getDb() {
     );
   `);
 
+  await _db.execAsync(`
+    CREATE TABLE IF NOT EXISTS completion_state (
+      item_id TEXT PRIMARY KEY NOT NULL,
+      done INTEGER NOT NULL DEFAULT 0
+    );
+  `);
+
   return _db;
 }

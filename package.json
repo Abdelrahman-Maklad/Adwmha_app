@@ -11,10 +11,12 @@
   "dependencies": {
     "@expo/metro-config": "~54.0.14",
     "@expo/metro-runtime": "~6.1.2",
+    "@react-native-community/datetimepicker": "8.4.4",
     "expo": "~54.0.33",
     "expo-blur": "~15.0.8",
     "expo-crypto": "~15.0.8",
     "expo-location": "~19.0.8",
+    "expo-notifications": "~0.32.16",
     "expo-random": "^14.0.1",
     "expo-sqlite": "~16.0.10",
     "expo-status-bar": "~3.0.9",

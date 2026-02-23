@@ -25,8 +25,10 @@ const taskSchema = {
     "name",
     "done",
     "points",
+    "locked",
     "default",
     "repeat",
+    "repeat_days",
 
     "notifications",
     "enable_disable_notifications",
@@ -47,9 +49,16 @@ const taskSchema = {
     name: { type: "string" },
     done: { type: "boolean" },
     points: { type: "number" },
+    locked: { type: "boolean" },
 
     default: { type: "boolean" },
-    repeat: { type: "string" }, // daily | weekly | ...
+    repeat: { type: "string" }, // daily | weekly | certain_day
+    repeat_days: {
+      oneOf: [
+        { type: "array", items: { type: "string" } },
+        { type: "string" }
+      ]
+    }, // weekly => ["الاثنين", ...], certain_day => "YYYY-MM-DD"
 
     notifications: { type: "boolean" },
     enable_disable_notifications: { type: "boolean" },
@@ -79,12 +88,14 @@ export const checkpointSchema = {
     "type",
     "name",
     "time",
+    "order",
 
     "locked",
     "expanded",
 
     "default",
-    "repeat_type",
+    "repeat",
+    "repeat_days",
 
     "notifications",
     "enable_disable_notifications",
@@ -105,12 +116,19 @@ export const checkpointSchema = {
 
     name: { type: "string" },
     time: { type: "string" }, // "api" or "HH:mm" or whatever you generate
+    order: { type: "number" }, // sort order for rendering
 
     locked: { type: "boolean" },
     expanded: { type: "boolean" },
 
     default: { type: "boolean" },
-    repeat_type: { type: "string" }, // daily | weekly | ...
+    repeat: { type: "string" }, // daily | weekly | certain_day
+    repeat_days: {
+      oneOf: [
+        { type: "array", items: { type: "string" } },
+        { type: "string" }
+      ]
+    }, // weekly => ["الاثنين", ...], certain_day => "YYYY-MM-DD"
 
     notifications: { type: "boolean" },
     enable_disable_notifications: { type: "boolean" },

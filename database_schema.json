@@ -12,7 +12,8 @@
   "icon": "lucid-sun icon",
   "image": "",
   "isCompleted": false,
-  "repeat_type": "daily",
+  "repeat": "daily",
+  "repeat_days": [],
   "tasks": [
     {
       "id": "task-1",
@@ -30,7 +31,8 @@
       "image": "",
       "isChecked": false,
       "checklist":[],
-      "repeat": "daily"
+      "repeat": "daily",
+      "repeat_days": []
     },
     {      
       "id": "task-2",
@@ -48,6 +50,7 @@
       "image": "",
       "isChecked": false,
       "repeat": "daily",
+      "repeat_days": [],
       "checklist":[{
         "id": "checklist-1",
         "text": "recite surah al-fatiha",

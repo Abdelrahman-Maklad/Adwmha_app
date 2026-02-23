@@ -28,6 +28,7 @@ export interface DateInfo {
 export interface PrayerTimesResult {
   timings: PrayerTimes;
   date: DateInfo;
+  lastThirdTime: string | null;
 }
 
 // Fallback times (used when location/API fails)
@@ -77,6 +78,53 @@ export async function getCurrentLocation(): Promise<{
   }
 }
 
+export async function getLocationLabel(
+  latitude: number,
+  longitude: number
+): Promise<string | null> {
+  try {
+    const osmUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&accept-language=ar`;
+    const osmRes = await fetch(osmUrl, {
+      headers: {
+        "Accept-Language": "ar",
+      },
+    }
+  );
+
+    if (osmRes.ok) {
+      const osm = await osmRes.json();
+      const addr = osm?.address ?? {};
+      const city = addr.city || addr.town || addr.village || addr.state;
+      const country = addr.country;
+      if (city && country) return `${city}، ${country}`;
+      if (country) return country;
+    }
+
+    const places = await Location.reverseGeocodeAsync({ latitude, longitude });
+    const place = places?.[0];
+    if (!place) return null;
+
+    const city = place.city || place.region || place.subregion;
+    const countryCode = place.isoCountryCode;
+
+    let countryArabic = place.country;
+    if (countryCode) {
+      try {
+        countryArabic = new Intl.DisplayNames(["ar"], { type: "region" }).of(countryCode) ?? place.country;
+      } catch {
+        countryArabic = place.country;
+      }
+    }
+
+    if (city && countryArabic) return `${city}، ${countryArabic}`;
+    if (countryArabic) return countryArabic;
+    return city ?? null;
+  } catch (error) {
+    console.error("Error reverse geocoding location:", error);
+    return null;
+  }
+}
+
 /**
  * Fetch prayer times from Aladhan API
  * @param lat - Latitude
@@ -92,8 +140,12 @@ export async function fetchPrayerTimes(
     const timestamp = Math.floor(Date.now() / 1000);
     const url = `https://api.aladhan.com/v1/timings/${timestamp}?latitude=${lat}&longitude=${lng}&method=${method}`;
 
-    const response = await fetch(url);
+    console.log("[PrayerAPI] Request URL:", url);
+    console.log("[PrayerAPI] Coords:", { lat, lng, method });
 
+    const response = await fetch(url);
+    
+    
     if (!response.ok) {
       throw new Error(`API error: ${response.status}`);
     }
@@ -101,6 +153,8 @@ export async function fetchPrayerTimes(
     const json = await response.json();
     const data = json.data;
 
+    console.log("[PrayerAPI] Status:", data);
+    
     return {
       timings: {
         fajr: data.timings.Fajr,
@@ -124,6 +178,11 @@ export async function fetchPrayerTimes(
           weekday: data.date.gregorian.weekday.en,
         },
       },
+      lastThirdTime:
+        data.timings.Lastthird ??
+        data.timings.LastThird ??
+        data.timings.lastthird ??
+        null,
     };
   } catch (error) {
     console.error("Error fetching prayer times:", error);
@@ -139,6 +198,7 @@ export async function initializePrayerTimes(): Promise<{
   times: PrayerTimes;
   lastThirdTime: string;
   date: DateInfo | null;
+  locationLabel: string;
 }> {
   // Try to get location permission
   const hasPermission = await requestLocationPermission();
@@ -149,6 +209,7 @@ export async function initializePrayerTimes(): Promise<{
       times: FALLBACK_TIMES,
       lastThirdTime: FALLBACK_LAST_THIRD,
       date: null,
+      locationLabel: "الموقع غير متاح",
     };
   }
 
@@ -161,8 +222,12 @@ export async function initializePrayerTimes(): Promise<{
       times: FALLBACK_TIMES,
       lastThirdTime: FALLBACK_LAST_THIRD,
       date: null,
+      locationLabel: "الموقع غير متاح",
     };
   }
+
+  const locationLabel =
+    (await getLocationLabel(location.latitude, location.longitude)) ?? "الموقع غير متاح";
 
   // Try to fetch prayer times from API
   const result = await fetchPrayerTimes(location.latitude, location.longitude);
@@ -173,19 +238,20 @@ export async function initializePrayerTimes(): Promise<{
       times: FALLBACK_TIMES,
       lastThirdTime: FALLBACK_LAST_THIRD,
       date: null,
+      locationLabel,
     };
   }
 
-  // Calculate last third of night time (roughly 1/3 of time between Isha and Fajr)
-  const lastThirdTime = calculateLastThird(
-    result.timings.isha,
-    result.timings.fajr
-  );
+  // Prefer API-provided last third of night if available.
+  const lastThirdTime =
+    result.lastThirdTime ??
+    calculateLastThird(result.timings.isha, result.timings.fajr);
 
   return {
     times: result.timings,
     lastThirdTime,
     date: result.date,
+    locationLabel,
   };
 }
 

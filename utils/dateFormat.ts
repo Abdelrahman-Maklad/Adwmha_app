@@ -32,10 +32,40 @@ export function formatHijriDate(dateInfo: DateInfo["hijri"]): string {
 
 /**
  * Format Georgian date
- * Example: "Sunday, February 16, 2025"
+ * Example: "الأحد، ١٦ فبراير ٢٠٢٥"
  */
 export function formatGregorianDate(dateInfo: DateInfo["gregorian"]): string {
-  return `${dateInfo.weekday}, ${dateInfo.month} ${dateInfo.day}, ${dateInfo.year}`;
+  const weekdays: Record<string, string> = {
+    Sunday: "الأحد",
+    Monday: "الاثنين",
+    Tuesday: "الثلاثاء",
+    Wednesday: "الأربعاء",
+    Thursday: "الخميس",
+    Friday: "الجمعة",
+    Saturday: "السبت",
+  };
+
+  const months: Record<string, string> = {
+    January: "يناير",
+    February: "فبراير",
+    March: "مارس",
+    April: "أبريل",
+    May: "مايو",
+    June: "يونيو",
+    July: "يوليو",
+    August: "أغسطس",
+    September: "سبتمبر",
+    October: "أكتوبر",
+    November: "نوفمبر",
+    December: "ديسمبر",
+  };
+
+  const weekdayAr = weekdays[dateInfo.weekday] ?? dateInfo.weekday;
+  const monthAr = months[dateInfo.month] ?? dateInfo.month;
+
+  return `${weekdayAr}، ${toArabicDigits(dateInfo.day)} ${monthAr} ${toArabicDigits(
+    dateInfo.year
+  )}`;
 }
 
 /**
