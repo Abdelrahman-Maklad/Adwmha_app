@@ -8,10 +8,22 @@ import {
   StyleSheet,
   Animated,
   LayoutChangeEvent,
+  ActivityIndicator,
 } from "react-native";
 
 import { seedIfEmpty } from "./db/seed";
 import { loadCheckpoints } from "./db/queries";
+import {
+  initializePrayerTimes,
+  DateInfo,
+  FALLBACK_TIMES,
+  FALLBACK_LAST_THIRD,
+} from "./services/prayerTimes";
+import {
+  formatHijriDate,
+  formatGregorianDate,
+  toArabicDigits,
+} from "./utils/dateFormat";
 
 import {
   Moon,
@@ -28,6 +40,8 @@ import {
   Landmark,
   ChevronDown,
   Check,
+  Calendar,
+  MapPin,
 } from "lucide-react-native";
 
 const ICON_MAP: Record<string, any> = {
@@ -153,26 +167,45 @@ function AnimatedChevron({ expanded, color }: { expanded: boolean; color: string
   );
 }
 
-// ============ HELPERS ============
+// ============ CALENDAR HEADER COMPONENT ============
 
-function toArabicDigits(input: string) {
-  const map: Record<string, string> = {
-    "0": "٠",
-    "1": "١",
-    "2": "٢",
-    "3": "٣",
-    "4": "٤",
-    "5": "٥",
-    "6": "٦",
-    "7": "٧",
-    "8": "٨",
-    "9": "٩",
-  };
-  return input.replace(/[0-9]/g, (d) => map[d]);
+function CalendarHeader({
+  dateInfo,
+  loading,
+}: {
+  dateInfo: DateInfo | null;
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <View style={styles.calendarHeader}>
+        <ActivityIndicator size="small" color="#7B6CF6" />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.calendarHeader}>
+      {/* Hijri Date - Main */}
+      <View style={styles.hijriContainer}>
+        <Calendar size={20} color="#7B6CF6" />
+        <Text style={styles.hijriDate}>
+          {dateInfo ? formatHijriDate(dateInfo.hijri) : "جاري التحميل..."}
+        </Text>
+      </View>
+
+      {/* Georgian Date - Secondary */}
+      <Text style={styles.gregorianDate}>
+        {dateInfo ? formatGregorianDate(dateInfo.gregorian) : ""}
+      </Text>
+    </View>
+  );
 }
 
+// ============ HELPERS ============
+
 function formatTimeLabel(hhmm: string) {
-  if (!hhmm || hhmm === "api") return "ص ٥:٠٠";
+  if (!hhmm || hhmm === "api") return toArabicDigits("ص 5:00");
 
   const [hhStr, mmStr] = hhmm.split(":");
   const hh = Number(hhStr);
@@ -193,6 +226,8 @@ function formatTimeLabel(hhmm: string) {
 export default function TimelineScreen() {
   const [checkpoints, setCheckpoints] = useState<any[]>([]);
   const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [dateInfo, setDateInfo] = useState<DateInfo | null>(null);
 
   // Expansion state
   const [expandedCheckpoints, setExpandedCheckpoints] = useState<Set<string>>(new Set());
@@ -205,23 +240,25 @@ export default function TimelineScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const times = {
-          fajr: "05:01",
-          sunrise: "06:28",
-          dhuhr: "12:03",
-          asr: "15:24",
-          maghrib: "17:56",
-          isha: "19:25",
-        };
-        const lastThirdTime = "03:30";
+        setLoading(true);
 
-        await seedIfEmpty(times, lastThirdTime);
+        // Initialize prayer times with location
+        const result = await initializePrayerTimes();
+
+        // Set date info from API
+        setDateInfo(result.date);
+
+        // Seed database with fetched times
+        await seedIfEmpty(result.times, result.lastThirdTime);
         const data = await loadCheckpoints();
         setCheckpoints(data);
+
         // Initialize all checkpoints as expanded
         setExpandedCheckpoints(new Set(data.map((cp: any) => cp.id)));
       } catch (e: any) {
         setErr(e?.message ?? String(e));
+      } finally {
+        setLoading(false);
       }
     })();
   }, []);
@@ -275,6 +312,7 @@ export default function TimelineScreen() {
         data={checkpoints}
         keyExtractor={(cp) => cp.id}
         contentContainerStyle={{ paddingVertical: 18 }}
+        ListHeaderComponent={<CalendarHeader dateInfo={dateInfo} loading={loading} />}
         renderItem={({ item: cp }) => {
           const CpIcon = ICON_MAP[String(cp.icon || "").toLowerCase()];
           const color = cp.color || "#7B6CF6";
@@ -296,8 +334,8 @@ export default function TimelineScreen() {
                   style={[
                     styles.headerPill,
                     {
-                      borderColor: withAlpha(color, 0.5),
-                      backgroundColor: withAlpha(color, 0.12),
+                      borderColor: "rgba(255,255,255,0.15)",
+                      backgroundColor: "rgba(255,255,255,0.04)",
                     },
                   ]}
                   onPress={() => toggleCheckpoint(cp.id)}
@@ -313,8 +351,8 @@ export default function TimelineScreen() {
                       {cp.name}
                     </Text>
 
-                    <View style={[styles.timePill, { backgroundColor: withAlpha(color, 0.2) }]}>
-                      <Text style={[styles.timeText, { color: lightenColor(color, 30) }]}>
+                    <View style={styles.timePill}>
+                      <Text style={[styles.timeText, { color }]}>
                         {formatTimeLabel(cp.time)}
                       </Text>
                     </View>
@@ -347,10 +385,13 @@ export default function TimelineScreen() {
                                   : withAlpha(color, 0.15),
                               },
                             ]}
-                            onPress={() => hasChecklist && toggleTask(cp.id, t.id)}
+                            onPress={() => {
+                              toggleTaskDone(t.id);
+                              if (hasChecklist) toggleTask(cp.id, t.id);
+                            }}
                           >
-                            {/* Checkbox - separate press area */}
-                            <Pressable
+                            {/* Checkbox */}
+                            <View
                               style={[
                                 styles.checkboxOuter,
                                 taskDone && {
@@ -358,22 +399,18 @@ export default function TimelineScreen() {
                                   borderColor: color,
                                 },
                               ]}
-                              onPress={() => toggleTaskDone(t.id)}
                             >
                               {taskDone && <Check size={12} color="#0A0E1A" strokeWidth={3} />}
-                            </Pressable>
+                            </View>
 
-                            {/* Content row */}
-                            <View style={styles.taskContentRow}>
-                              <View style={styles.taskIcon}>
-                                {TaskIcon ? (
-                                  <TaskIcon
-                                    size={16}
-                                    color={taskDone ? darkenColor(color, 20) : taskColor}
-                                  />
-                                ) : null}
-                              </View>
-
+                            {/* Task content - icon and name in same container */}
+                            <View style={styles.taskContentContainer}>
+                              {TaskIcon && (
+                                <TaskIcon
+                                  size={16}
+                                  color={taskDone ? darkenColor(color, 20) : taskColor}
+                                />
+                              )}
                               <Text
                                 style={[
                                   styles.taskText,
@@ -387,12 +424,12 @@ export default function TimelineScreen() {
                               >
                                 {t.name}
                               </Text>
-
-                              {/* Chevron if has checklist */}
-                              {hasChecklist && (
-                                <AnimatedChevron expanded={isTaskExpanded} color={taskColor} />
-                              )}
                             </View>
+
+                            {/* Chevron if has checklist */}
+                            {hasChecklist && (
+                              <AnimatedChevron expanded={isTaskExpanded} color={taskColor} />
+                            )}
                           </Pressable>
 
                           {/* Checklist items - collapsible */}
@@ -496,6 +533,33 @@ const styles = StyleSheet.create({
   title: { color: "white", fontSize: 18, marginTop: 16 },
   errText: { color: "#FCA5A5", marginTop: 10 },
 
+  // Calendar Header Styles
+  calendarHeader: {
+    alignItems: "center",
+    paddingVertical: 20,
+    marginBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.08)",
+  },
+  hijriContainer: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 6,
+  },
+  hijriDate: {
+    color: "#E5E7EB",
+    fontSize: 20,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  gregorianDate: {
+    color: "#6B7280",
+    fontSize: 14,
+    textAlign: "center",
+  },
+
+  // Timeline Styles
   checkpointRow: {
     flexDirection: "row-reverse",
     alignItems: "flex-start",
@@ -579,13 +643,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  taskContentRow: {
+  // Task content container - icon and name together
+  taskContentContainer: {
     flex: 1,
     flexDirection: "row-reverse",
     alignItems: "center",
     gap: 8,
   },
-  taskIcon: { width: 18, alignItems: "center" },
   taskText: {
     flex: 1,
     fontSize: 14,
