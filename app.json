@@ -34,9 +34,12 @@
       [
         "expo-notifications",
         {
-          "sounds": ["assets/sounds/adhan.mp3"]
+          "sounds": [
+            "assets/sounds/adhan.mp3"
+          ]
         }
-      ]
+      ],
+      "expo-font"
     ]
   }
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { Audio } from "expo-av";
+import { useFonts } from "expo-font";
 
 import { seedIfEmpty } from "./db/seed";
 import {
@@ -224,6 +225,7 @@ function CalendarHeader({
         </View>
 
         <View style={styles.pointsCounter}>
+          <Star size={14} color="#A7F3D0" />
           <Text style={styles.pointsCounterLabel}>نقاط اليوم</Text>
           <Text style={styles.pointsCounterValue}>{toArabicDigits(totalPoints)}</Text>
         </View>
@@ -244,13 +246,16 @@ function formatTimeLabel(hhmm: string) {
   const mm = Number(mmStr);
 
   const isPM = hh >= 12;
-  const period = isPM ? "م" : "ص";
+  // const period = isPM ? "P" : "A";
 
   let h12 = hh % 12;
   if (h12 === 0) h12 = 12;
 
-  const label = ` ${h12}:${String(mm).padStart(2, "0")} ${period}`;
-  return toArabicDigits(label);
+  // const label = ` ${String(h12)}:${String(mm).padStart(2, "0")} ${period}`;
+  const label = ` ${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+  
+  // return toArabicDigits(label);
+  return label;
 }
 
 function parseHHmmToDate(hhmm: string): Date {
@@ -338,6 +343,11 @@ const SOUND_OPTIONS = ["default", "adhan"];
 const PREVIEWABLE_SOUND_ASSETS: Record<string, any> = {
   "adhan": require("./assets/sounds/adhan.mp3"),
 };
+const FONTS = {
+  regular: "Cairo-Regular",
+  semiBold: "Cairo-SemiBold",
+  bold: "Cairo-Bold",
+} as const;
 const REPEAT_MODE_OPTIONS = [
   { label: "يومي", value: "daily" as const },
   { label: "أسبوعي", value: "weekly" as const },
@@ -353,6 +363,12 @@ const WEEKDAY_OPTIONS = [
 ];
 
 export default function TimelineScreen() {
+  const [fontsLoaded] = useFonts({
+    [FONTS.regular]: require("./assets/fonts/Cairo-Regular.ttf"),
+    [FONTS.semiBold]: require("./assets/fonts/Cairo-SemiBold.ttf"),
+    [FONTS.bold]: require("./assets/fonts/Cairo-Bold.ttf"),
+  });
+
   const [checkpoints, setCheckpoints] = useState<any[]>([]);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
@@ -1161,7 +1177,7 @@ export default function TimelineScreen() {
     );
   }
 
-  if (loading) {
+  if (loading || !fontsLoaded) {
     return <StartScreen />;
   }
 
@@ -1228,7 +1244,6 @@ export default function TimelineScreen() {
           <View style={styles.addCheckpointRow}>
             <Pressable style={styles.addCheckpointButton} onPress={openAddCheckpointModal}>
               <Plus size={16} color="#E5E7EB" />
-              <Text style={styles.addCheckpointButtonText}>إضافة مرحلة</Text>
             </Pressable>
           </View>
         }
@@ -1241,39 +1256,28 @@ export default function TimelineScreen() {
           return (
             <View style={styles.checkpointRow}>
               <View style={styles.timelineCol}>
-                <View style={[styles.dot, { backgroundColor: color }]} />
+                <View style={styles.timelineMetaRow}>
+                  <View
+                    style={[
+                      styles.timelineTimePill,
+                      {
+                        backgroundColor: withAlpha(color, 0.16),
+                        borderColor: withAlpha(color, 0.35),
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.timelineTimeText, { color: "#FFFFFF" }]}>{formatTimeLabel(cp.time)}</Text>
+                  </View>
+                </View>
                 <View style={[styles.line, { backgroundColor: withAlpha(color, 0.6) }]} />
               </View>
 
               <View style={styles.contentCol}>
-                <Pressable
-                  style={[
-                    styles.headerPill,
-                    {
-                      borderColor: "rgba(255,255,255,0.15)",
-                      backgroundColor: "rgba(255,255,255,0.04)",
-                    },
-                  ]}
-                  onPress={() => toggleCheckpoint(cp.id)}
-                >
-                  <View style={styles.headerInner}>
-                    <AnimatedChevron expanded={isCheckpointExpanded} color={color} />
-
-                    <View style={styles.headerIcon}>
-                      {CpIcon ? <CpIcon size={16} color={color} /> : null}
-                    </View>
-
-                    <Text style={[styles.headerName, { color }]} numberOfLines={1}>
-                      {cp.name}
-                    </Text>
-
-                    <View style={styles.timePill}>
-                      <Text style={[styles.timeText, { color }]}>{formatTimeLabel(cp.time)}</Text>
-                    </View>
-
+                <View style={styles.checkpointHeaderRow}>
+                  <View style={styles.circleActionsRow}>
                     {cp.enable_disable_notifications && (
                       <Pressable
-                        style={styles.taskMenuButton}
+                        style={styles.circleActionButton}
                         onPress={(event) => {
                           event.stopPropagation();
                           if (isDefaultCheckpoint(cp)) {
@@ -1284,38 +1288,61 @@ export default function TimelineScreen() {
                         }}
                       >
                         {cp.notifications ? (
-                          <Bell size={16} color="#E5E7EB" />
+                          <Bell size={15} color="#E5E7EB" />
                         ) : (
-                          <BellOff size={16} color="#E5E7EB" />
+                          <BellOff size={15} color="#E5E7EB" />
                         )}
                       </Pressable>
                     )}
 
                     {canAddTaskToCheckpoint(cp) && (
                       <Pressable
-                        style={styles.taskMenuButton}
+                        style={styles.circleActionButton}
                         onPress={(event) => {
                           event.stopPropagation();
                           openAddTaskModal(cp);
                         }}
                       >
-                        <Plus size={16} color="#E5E7EB" />
+                        <Plus size={15} color="#E5E7EB" />
                       </Pressable>
                     )}
 
                     {canDeleteCheckpoint(cp) && (
                       <Pressable
-                        style={styles.taskMenuButton}
+                        style={[styles.circleActionButton, styles.circleActionDanger]}
                         onPress={(event) => {
                           event.stopPropagation();
                           requestDeleteCheckpoint(cp);
                         }}
                       >
-                        <Trash2 size={16} color="#FCA5A5" />
+                        <Trash2 size={15} color="#FCA5A5" />
                       </Pressable>
                     )}
                   </View>
-                </Pressable>
+
+                  <Pressable
+                    style={[
+                      styles.headerPill,
+                      {
+                        borderColor: "rgba(255,255,255,0.13)",
+                        backgroundColor: "rgba(255,255,255,0.03)",
+                      },
+                    ]}
+                    onPress={() => toggleCheckpoint(cp.id)}
+                  >
+                    <View style={styles.headerInner}>
+                      <AnimatedChevron expanded={isCheckpointExpanded} color={color} />
+
+                      <View style={styles.headerIcon}>
+                        {CpIcon ? <CpIcon size={16} color={color} /> : null}
+                      </View>
+
+                      <Text style={styles.headerName} numberOfLines={1}>
+                        {cp.name}
+                      </Text>
+                    </View>
+                  </Pressable>
+                </View>
 
                 <Accordion expanded={isCheckpointExpanded}>
                   <View style={styles.tasksContainer}>
@@ -1329,89 +1356,93 @@ export default function TimelineScreen() {
 
                       return (
                         <View key={t.id} style={styles.taskWrapper}>
-                          <Pressable
-                            style={[
-                              styles.taskCard,
-                              {
-                                backgroundColor: taskDone
-                                  ? withAlpha(color, 0.15)
-                                  : withAlpha(color, 0.06),
-                                borderColor: taskDone
-                                  ? withAlpha(color, 0.4)
-                                  : withAlpha(color, 0.15),
-                              },
-                            ]}
-                            onPress={() => {
-                              void toggleItemDone(t.id);
-                              if (hasChecklist) toggleTask(cp.id, t.id);
-                            }}
-                          >
-                            <View
+                          <View style={styles.taskRow}>
+                            <View style={styles.circleActionsRow}>
+                              {t.enable_disable_notifications && (
+                                <Pressable
+                                  style={styles.circleActionButton}
+                                  onPress={(event) => {
+                                    event.stopPropagation();
+                                    openTaskNotificationMenu(cp, t);
+                                  }}
+                                >
+                                  {t.notifications ? (
+                                    <Bell size={15} color="#E5E7EB" />
+                                  ) : (
+                                    <BellOff size={15} color="#E5E7EB" />
+                                  )}
+                                </Pressable>
+                              )}
+
+                              {canDeleteTask(t) && (
+                                <Pressable
+                                  style={[styles.circleActionButton, styles.circleActionDanger]}
+                                  onPress={(event) => {
+                                    event.stopPropagation();
+                                    requestDeleteTask(cp, t);
+                                  }}
+                                >
+                                  <Trash2 size={15} color="#FCA5A5" />
+                                </Pressable>
+                              )}
+                            </View>
+
+                            <Pressable
                               style={[
-                                styles.checkboxOuter,
-                                taskDone && {
-                                  backgroundColor: color,
-                                  borderColor: color,
+                                styles.taskCard,
+                                {
+                                  backgroundColor: taskDone
+                                    ? withAlpha(color, 0.14)
+                                    : withAlpha(color, 0.05),
+                                  borderColor: taskDone
+                                    ? withAlpha(color, 0.34)
+                                    : withAlpha(color, 0.12),
                                 },
                               ]}
+                              onPress={() => {
+                                void toggleItemDone(t.id);
+                                if (hasChecklist) toggleTask(cp.id, t.id);
+                              }}
                             >
-                              {taskDone && <Check size={12} color="#0A0E1A" strokeWidth={3} />}
-                            </View>
-
-                            <View style={styles.taskContentContainer}>
-                              {TaskIcon && (
-                                <TaskIcon
-                                  size={16}
-                                  color={taskDone ? darkenColor(color, 20) : taskColor}
-                                />
-                              )}
-                              <Text
+                              <View
                                 style={[
-                                  styles.taskText,
-                                  {
-                                    color: taskDone ? darkenColor(color, 10) : taskColor,
-                                    textDecorationLine: taskDone ? "line-through" : "none",
-                                    opacity: taskDone ? 0.7 : 1,
+                                  styles.checkboxOuter,
+                                  taskDone && {
+                                    backgroundColor: color,
+                                    borderColor: color,
                                   },
                                 ]}
-                                numberOfLines={1}
                               >
-                                {t.name}
-                              </Text>
-                            </View>
+                                {taskDone && <Check size={12} color="#0A0E1A" strokeWidth={3} />}
+                              </View>
 
-                            {hasChecklist && (
-                              <AnimatedChevron expanded={isTaskExpanded} color={taskColor} />
-                            )}
-
-                            {t.enable_disable_notifications && (
-                              <Pressable
-                                style={styles.taskMenuButton}
-                                onPress={(event) => {
-                                  event.stopPropagation();
-                                  openTaskNotificationMenu(cp, t);
-                                }}
-                              >
-                                {t.notifications ? (
-                                  <Bell size={16} color="#E5E7EB" />
-                                ) : (
-                                  <BellOff size={16} color="#E5E7EB" />
+                              <View style={styles.taskContentContainer}>
+                                {TaskIcon && (
+                                  <TaskIcon
+                                    size={16}
+                                    color={taskDone ? darkenColor(color, 20) : taskColor}
+                                  />
                                 )}
-                              </Pressable>
-                            )}
+                                <Text
+                                  style={[
+                                    styles.taskText,
+                                    {
+                                      color: taskDone ? darkenColor(color, 10) : taskColor,
+                                      textDecorationLine: taskDone ? "line-through" : "none",
+                                      opacity: taskDone ? 0.7 : 1,
+                                    },
+                                  ]}
+                                  numberOfLines={1}
+                                >
+                                  {t.name}
+                                </Text>
+                              </View>
 
-                            {canDeleteTask(t) && (
-                              <Pressable
-                                style={styles.taskMenuButton}
-                                onPress={(event) => {
-                                  event.stopPropagation();
-                                  requestDeleteTask(cp, t);
-                                }}
-                              >
-                                <Trash2 size={16} color="#FCA5A5" />
-                              </Pressable>
-                            )}
-                          </Pressable>
+                              {hasChecklist && (
+                                <AnimatedChevron expanded={isTaskExpanded} color={taskColor} />
+                              )}
+                            </Pressable>
+                          </View>
 
                           {hasChecklist && (
                             <Accordion expanded={isTaskExpanded}>
@@ -1840,8 +1871,8 @@ const styles = StyleSheet.create({
   title: { color: "white", fontSize: 18, marginTop: 16 },
   errText: { color: "#FCA5A5", marginTop: 10 },
   addCheckpointRow: {
-    alignItems: "flex-start",
-    marginBottom: 14,
+    alignItems: "flex-end",
+    marginBottom: 6,
   },
   addCheckpointButton: {
     flexDirection: "row-reverse",
@@ -1851,13 +1882,15 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.2)",
     backgroundColor: "rgba(255,255,255,0.06)",
     borderRadius: 999,
-    paddingVertical: 8,
+    paddingVertical: 4,
     paddingHorizontal: 14,
   },
   addCheckpointButtonText: {
     color: "#E5E7EB",
     fontSize: 13,
     fontWeight: "700",
+    fontFamily: FONTS.semiBold,
+    
   },
 
   fixedTopBarContainer: {
@@ -1899,6 +1932,7 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
     fontSize: 11,
     marginBottom: 4,
+    fontFamily: FONTS.regular,
   },
   dayCardWeekdaySelected: {
     color: "#E5E7EB",
@@ -1907,6 +1941,7 @@ const styles = StyleSheet.create({
     color: "#F8FAFC",
     fontSize: 16,
     fontWeight: "800",
+    fontFamily: FONTS.bold,
   },
   dayCardDaySelected: {
     color: "#FFFFFF",
@@ -1916,6 +1951,7 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
     fontSize: 10,
     lineHeight: 12,
+    fontFamily: FONTS.regular,
   },
   dayCardGregorianSmallSelected: {
     color: "#E2E8F0",
@@ -1971,6 +2007,7 @@ const styles = StyleSheet.create({
     color: "#E5E7EB",
     fontSize: 12,
     fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     textAlign: "right",
     flexShrink: 1,
   },
@@ -1987,69 +2024,99 @@ const styles = StyleSheet.create({
     color: "#A7F3D0",
     fontSize: 12,
     fontWeight: "700",
+    fontFamily: FONTS.semiBold,
   },
   pointsCounterValue: {
     color: "#ECFDF5",
     fontSize: 13,
     fontWeight: "800",
+    fontFamily: FONTS.bold,
   },
   hijriDate: {
     color: "#E5E7EB",
     fontSize: 18,
     fontWeight: "700",
+    fontFamily: FONTS.bold,
     textAlign: "right",
   },
   gregorianDate: {
     color: "#9CA3AF",
     fontSize: 12,
+    fontFamily: FONTS.regular,
     textAlign: "right",
   },
 
   checkpointRow: {
     flexDirection: "row-reverse",
-    alignItems: "flex-start",
+    alignItems: "flex-end",
     gap: 10,
     marginBottom: 18,
   },
 
   timelineCol: {
-    width: 22,
+    width: 40,
     alignItems: "center",
     paddingTop: 8,
+    marginRight: 4,
   },
-  dot: {
-    width: 12,
-    height: 12,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.2)",
+  timelineMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-start",
+  },
+  timelineTimePill: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    minWidth: 50,
+    alignItems: "center",
   },
   line: {
     marginTop: 6,
-    width: 3,
+    width: 2,
     flex: 1,
-    borderRadius: 3,
+    borderRadius: 2,
+    marginLeft: 4,
+  },
+  timelineTimeText: {
+    fontSize: 10,
+    fontWeight: "600",
   },
 
   contentCol: {
     flex: 1,
     gap: 10,
   },
+  checkpointHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    alignSelf: "flex-end"
+  },
 
   headerPill: {
-    alignSelf: "flex-end",
     borderWidth: 1,
     borderRadius: 25,
-    paddingVertical: 4,
-    paddingHorizontal: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    maxWidth: "100%",
   },
   headerInner: {
     flexDirection: "row-reverse",
     alignItems: "center",
+    justifyContent: "flex-start",
     gap: 8,
   },
   headerIcon: { width: 18, alignItems: "center" },
-  headerName: { fontSize: 14, fontWeight: "700" },
+  headerName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    fontFamily: FONTS.bold,
+    flexShrink: 1,
+    textAlign: "right",
+  },
 
   timePill: {
     paddingHorizontal: 10,
@@ -2069,8 +2136,14 @@ const styles = StyleSheet.create({
   taskWrapper: {
     gap: 4,
   },
+  taskRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
 
   taskCard: {
+    flex: 1,
     flexDirection: "row-reverse",
     alignItems: "center",
     gap: 10,
@@ -2097,6 +2170,26 @@ const styles = StyleSheet.create({
   taskText: {
     fontSize: 14,
     fontWeight: "500",
+    fontFamily: FONTS.semiBold,
+  },
+  circleActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  circleActionButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+    backgroundColor: "rgba(255,255,255,0.05)",
+  },
+  circleActionDanger: {
+    borderColor: "rgba(252,165,165,0.35)",
+    backgroundColor: "rgba(252,165,165,0.08)",
   },
   taskMenuButton: {
     width: 26,
@@ -2136,6 +2229,7 @@ const styles = StyleSheet.create({
   checklistText: {
     flex: 1,
     fontSize: 13,
+    fontFamily: FONTS.regular,
   },
   pointsBadge: {
     paddingHorizontal: 6,
@@ -2145,6 +2239,7 @@ const styles = StyleSheet.create({
   pointsText: {
     fontSize: 11,
     fontWeight: "700",
+    fontFamily: FONTS.bold,
   },
   modalBackdrop: {
     flex: 1,
@@ -2167,11 +2262,13 @@ const styles = StyleSheet.create({
     color: "#F9FAFB",
     fontSize: 17,
     fontWeight: "700",
+    fontFamily: FONTS.bold,
     textAlign: "right",
   },
   modalTaskName: {
     color: "#D1D5DB",
     fontSize: 14,
+    fontFamily: FONTS.regular,
     textAlign: "right",
   },
   modalRow: {
@@ -2204,6 +2301,7 @@ const styles = StyleSheet.create({
     color: "#E5E7EB",
     fontSize: 13,
     fontWeight: "600",
+    fontFamily: FONTS.semiBold,
   },
   repeatDaysRow: {
     flexDirection: "row-reverse",
@@ -2226,11 +2324,13 @@ const styles = StyleSheet.create({
     color: "#E5E7EB",
     fontSize: 12,
     fontWeight: "600",
+    fontFamily: FONTS.semiBold,
   },
   modalLabel: {
     color: "#E5E7EB",
     fontSize: 14,
     fontWeight: "600",
+    fontFamily: FONTS.semiBold,
   },
   modalInput: {
     borderWidth: 1,
@@ -2260,6 +2360,7 @@ const styles = StyleSheet.create({
     color: "#F3F4F6",
     fontSize: 14,
     fontWeight: "700",
+    fontFamily: FONTS.semiBold,
   },
   soundOptionsRow: {
     flexDirection: "row-reverse",
@@ -2287,6 +2388,7 @@ const styles = StyleSheet.create({
     color: "#E5E7EB",
     fontSize: 12,
     fontWeight: "600",
+    fontFamily: FONTS.semiBold,
   },
   soundPreviewButton: {
     width: 28,
@@ -2310,6 +2412,7 @@ const styles = StyleSheet.create({
   modalHintText: {
     color: "#94A3B8",
     fontSize: 12,
+    fontFamily: FONTS.regular,
     textAlign: "right",
   },
   modalButton: {
@@ -2329,9 +2432,11 @@ const styles = StyleSheet.create({
   modalCancelText: {
     color: "#E5E7EB",
     fontWeight: "600",
+    fontFamily: FONTS.semiBold,
   },
   modalSaveText: {
     color: "#FFFFFF",
     fontWeight: "700",
+    fontFamily: FONTS.bold,
   },
 });
