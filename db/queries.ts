@@ -181,3 +181,142 @@ export async function updateCheckpointNotificationSettings(params: {
 
   return null;
 }
+
+export async function createCheckpoint(params: {
+  name: string;
+  time: string;
+}) {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ id: string; doc: string }>(
+    "SELECT id, doc FROM checkpoints;"
+  );
+
+  const checkpoints = rows.map((r) => JSON.parse(r.doc));
+  const maxOrder = checkpoints.reduce((max, cp) => {
+    const value = typeof cp.order === "number" ? cp.order : -1;
+    return value > max ? value : max;
+  }, -1);
+
+  const id = `cp_user_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const normalizedName = String(params.name ?? "").trim();
+  const normalizedTime = String(params.time ?? "").trim() || "08:00";
+
+  const checkpoint = {
+    id,
+    type: "checkpoint",
+    name: normalizedName || "مرحلة جديدة",
+    time: normalizedTime,
+    order: maxOrder + 1,
+    locked: false,
+    expanded: true,
+    default: false,
+    repeat: "daily",
+    repeat_days: "",
+    notifications: false,
+    enable_disable_notifications: true,
+    notification_time: normalizedTime,
+    notification_title: "",
+    notification_sound: "default",
+    notification_text: "",
+    color: "#38BDF8",
+    icon: "star",
+    image: "",
+    redirect: "",
+    tasks: [],
+  };
+
+  await db.runAsync(
+    "INSERT OR REPLACE INTO checkpoints (id, doc) VALUES (?, ?);",
+    [checkpoint.id, JSON.stringify(checkpoint)]
+  );
+
+  return checkpoint;
+}
+
+export async function deleteCheckpoint(checkpointId: string) {
+  const db = await getDb();
+  const result = await db.runAsync("DELETE FROM checkpoints WHERE id = ?;", [checkpointId]);
+  return result.changes > 0;
+}
+
+export async function createTaskInCheckpoint(params: {
+  checkpointId: string;
+  name: string;
+  points?: number;
+}) {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ id: string; doc: string }>(
+    "SELECT id, doc FROM checkpoints WHERE id = ?;",
+    [params.checkpointId]
+  );
+  if (!row) return null;
+
+  const checkpoint = JSON.parse(row.doc);
+  const tasks = checkpoint.tasks ?? [];
+  const id = `t_user_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const normalizedName = String(params.name ?? "").trim();
+  const normalizedPoints = Number.isFinite(Number(params.points)) ? Number(params.points) : 0;
+
+  const task = {
+    id,
+    type: "regular_task",
+    name: normalizedName || "مهمة جديدة",
+    done: false,
+    points: Math.max(0, normalizedPoints),
+    locked: false,
+    default: false,
+    repeat: "daily",
+    repeat_days: "",
+    notifications: false,
+    enable_disable_notifications: true,
+    notification_time: String(checkpoint.time || "08:00"),
+    notification_title: "",
+    notification_sound: "default",
+    notification_text: "",
+    icon: "star",
+    image: "",
+    redirect: "",
+    checklist: [],
+  };
+
+  const nextCheckpoint = {
+    ...checkpoint,
+    tasks: [...tasks, task],
+  };
+
+  await db.runAsync(
+    "INSERT OR REPLACE INTO checkpoints (id, doc) VALUES (?, ?);",
+    [nextCheckpoint.id, JSON.stringify(nextCheckpoint)]
+  );
+
+  return { checkpoint: nextCheckpoint, task };
+}
+
+export async function deleteTaskFromCheckpoint(params: {
+  checkpointId: string;
+  taskId: string;
+}) {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ id: string; doc: string }>(
+    "SELECT id, doc FROM checkpoints WHERE id = ?;",
+    [params.checkpointId]
+  );
+  if (!row) return null;
+
+  const checkpoint = JSON.parse(row.doc);
+  const tasks = checkpoint.tasks ?? [];
+  const nextTasks = tasks.filter((task: any) => task.id !== params.taskId);
+  if (nextTasks.length === tasks.length) return null;
+
+  const nextCheckpoint = {
+    ...checkpoint,
+    tasks: nextTasks,
+  };
+
+  await db.runAsync(
+    "INSERT OR REPLACE INTO checkpoints (id, doc) VALUES (?, ?);",
+    [nextCheckpoint.id, JSON.stringify(nextCheckpoint)]
+  );
+
+  return { checkpoint: nextCheckpoint };
+}

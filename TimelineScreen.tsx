@@ -21,6 +21,10 @@ import { Audio } from "expo-av";
 import { seedIfEmpty } from "./db/seed";
 import {
   loadCheckpoints,
+  createCheckpoint,
+  createTaskInCheckpoint,
+  deleteCheckpoint,
+  deleteTaskFromCheckpoint,
   updateCheckpointNotificationSettings,
   updateTaskNotificationSettings,
 } from "./db/queries";
@@ -61,8 +65,10 @@ import {
   MapPin,
   Bell,
   BellOff,
+  Plus,
   Play,
   Square,
+  Trash2,
 } from "lucide-react-native";
 
 const ICON_MAP: Record<string, any> = {
@@ -306,6 +312,13 @@ function parseMinutes(hhmm: string): number {
   return h * 60 + m;
 }
 
+function parseTimeForSort(hhmm: string): number | null {
+  const [h, m] = String(hhmm || "").split(":").map(Number);
+  if (!Number.isInteger(h) || !Number.isInteger(m)) return null;
+  if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+  return h * 60 + m;
+}
+
 function formatMinutes(total: number): string {
   const normalized = ((Math.floor(total) % (24 * 60)) + 24 * 60) % (24 * 60);
   const h = Math.floor(normalized / 60);
@@ -353,6 +366,7 @@ export default function TimelineScreen() {
     itemName: string;
     repeat: string;
     repeatDays: unknown;
+    isDefault: boolean;
   } | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [notificationTime, setNotificationTime] = useState(new Date());
@@ -362,6 +376,18 @@ export default function TimelineScreen() {
   const [previewingSound, setPreviewingSound] = useState<string | null>(null);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [savingNotificationSettings, setSavingNotificationSettings] = useState(false);
+  const [addCheckpointModalVisible, setAddCheckpointModalVisible] = useState(false);
+  const [addTaskModalVisible, setAddTaskModalVisible] = useState(false);
+  const [showAddCheckpointTimePicker, setShowAddCheckpointTimePicker] = useState(false);
+  const [newCheckpointName, setNewCheckpointName] = useState("");
+  const [newCheckpointTime, setNewCheckpointTime] = useState(new Date());
+  const [newTaskName, setNewTaskName] = useState("");
+  const [newTaskPoints, setNewTaskPoints] = useState("0");
+  const [addTaskCheckpointTarget, setAddTaskCheckpointTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [savingCrud, setSavingCrud] = useState(false);
   const soundPreviewInstance = useRef<Audio.Sound | null>(null);
   const dayCardsListRef = useRef<FlatList<HijriMonthDayCard> | null>(null);
   const pendingDayScrollIndexRef = useRef<number | null>(null);
@@ -493,24 +519,70 @@ export default function TimelineScreen() {
   }, [checkpoints, doneState]);
 
   const checkpointsForSelectedDay = useMemo(() => {
-    if (!selectedDayTimes) return checkpoints;
+    const timeByCheckpointId: Record<string, string> | null = selectedDayTimes
+      ? {
+          cp_fajr: selectedDayTimes.fajr,
+          cp_sunrise: selectedDayTimes.sunrise,
+          cp_dhuhr: selectedDayTimes.dhuhr,
+          cp_asr: selectedDayTimes.asr,
+          cp_maghrib: selectedDayTimes.maghrib,
+          cp_isha: selectedDayTimes.isha,
+          cp_lastthird: calculateLastThirdFromTimes(selectedDayTimes.isha, selectedDayTimes.fajr),
+        }
+      : null;
 
-    const timeByCheckpointId: Record<string, string> = {
-      cp_fajr: selectedDayTimes.fajr,
-      cp_sunrise: selectedDayTimes.sunrise,
-      cp_dhuhr: selectedDayTimes.dhuhr,
-      cp_asr: selectedDayTimes.asr,
-      cp_maghrib: selectedDayTimes.maghrib,
-      cp_isha: selectedDayTimes.isha,
-      cp_lastthird: calculateLastThirdFromTimes(selectedDayTimes.isha, selectedDayTimes.fajr),
-    };
+    const base = timeByCheckpointId
+      ? checkpoints.map((cp: any) => {
+          const nextTime = timeByCheckpointId[cp.id];
+          if (!nextTime) return cp;
+          return { ...cp, time: nextTime };
+        })
+      : checkpoints;
 
-    return checkpoints.map((cp: any) => {
-      const nextTime = timeByCheckpointId[cp.id];
-      if (!nextTime) return cp;
-      return { ...cp, time: nextTime };
+    return [...base].sort((a: any, b: any) => {
+      const aTime = parseTimeForSort(a.time);
+      const bTime = parseTimeForSort(b.time);
+      if (aTime != null && bTime != null && aTime !== bTime) return aTime - bTime;
+      if (aTime != null && bTime == null) return -1;
+      if (aTime == null && bTime != null) return 1;
+      const aOrder = typeof a.order === "number" ? a.order : Number.MAX_SAFE_INTEGER;
+      const bOrder = typeof b.order === "number" ? b.order : Number.MAX_SAFE_INTEGER;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return String(a.id).localeCompare(String(b.id));
     });
   }, [checkpoints, selectedDayTimes]);
+
+  const isDefaultCheckpoint = (cp: any) => Boolean(cp?.default);
+  const isDefaultTask = (task: any) => Boolean(task?.default);
+  const canAddTaskToCheckpoint = (cp: any) =>
+    (Boolean(cp?.default) && Boolean(cp?.locked)) || (!Boolean(cp?.default) && !Boolean(cp?.locked));
+  const canDeleteCheckpoint = (cp: any) => !Boolean(cp?.default) && !Boolean(cp?.locked);
+  const canDeleteTask = (task: any) => !Boolean(task?.default) && !Boolean(task?.locked);
+
+  const resolveTodayPrayerTimeForCheckpoint = async (cp: any): Promise<string> => {
+    const fallbackTime = String(cp?.notification_time || cp?.time || "08:00");
+    if (!locationCoords) return fallbackTime;
+
+    const todayKey = gregorianDayKey(new Date());
+    const times = await fetchPrayerTimesForDate(
+      locationCoords.latitude,
+      locationCoords.longitude,
+      todayKey
+    );
+    if (!times) return fallbackTime;
+
+    const timeByCheckpointId: Record<string, string> = {
+      cp_fajr: times.fajr,
+      cp_sunrise: times.sunrise,
+      cp_dhuhr: times.dhuhr,
+      cp_asr: times.asr,
+      cp_maghrib: times.maghrib,
+      cp_isha: times.isha,
+      cp_lastthird: calculateLastThirdFromTimes(times.isha, times.fajr),
+    };
+
+    return timeByCheckpointId[String(cp?.id)] ?? fallbackTime;
+  };
 
   const toggleCheckpoint = (checkpointId: string) => {
     setExpandedCheckpoints((prev) => {
@@ -571,7 +643,247 @@ export default function TimelineScreen() {
     }
   };
 
-    const openTaskNotificationMenu = (cp: any, task: any) => {
+  const openAddCheckpointModal = () => {
+    setNewCheckpointName("");
+    setNewCheckpointTime(new Date());
+    setShowAddCheckpointTimePicker(false);
+    setAddCheckpointModalVisible(true);
+  };
+
+  const openAddTaskModal = (cp: any) => {
+    setAddTaskCheckpointTarget({ id: cp.id, name: cp.name });
+    setNewTaskName("");
+    setNewTaskPoints("0");
+    setAddTaskModalVisible(true);
+  };
+
+  const onAddCheckpointTimeChanged = (_event: DateTimePickerEvent, selected?: Date) => {
+    if (selected) setNewCheckpointTime(selected);
+    setShowAddCheckpointTimePicker(false);
+  };
+
+  const saveNewCheckpoint = async () => {
+    const name = newCheckpointName.trim();
+    if (!name) {
+      Alert.alert("خطأ", "يرجى إدخال اسم المرحلة.");
+      return;
+    }
+
+    try {
+      setSavingCrud(true);
+      const created = await createCheckpoint({
+        name,
+        time: toHHmm(newCheckpointTime),
+      });
+
+      setCheckpoints((prev) => [...prev, created]);
+      setExpandedCheckpoints((prev) => {
+        const next = new Set(prev);
+        next.add(created.id);
+        return next;
+      });
+      setAddCheckpointModalVisible(false);
+    } catch (e) {
+      console.error("Failed to create checkpoint:", e);
+      Alert.alert("خطأ", "تعذر إنشاء المرحلة.");
+    } finally {
+      setSavingCrud(false);
+    }
+  };
+
+  const saveNewTask = async () => {
+    if (!addTaskCheckpointTarget) return;
+    const name = newTaskName.trim();
+    if (!name) {
+      Alert.alert("خطأ", "يرجى إدخال اسم المهمة.");
+      return;
+    }
+
+    const parsedPoints = Number(newTaskPoints);
+    const points = Number.isFinite(parsedPoints) ? Math.max(0, parsedPoints) : 0;
+
+    try {
+      setSavingCrud(true);
+      const created = await createTaskInCheckpoint({
+        checkpointId: addTaskCheckpointTarget.id,
+        name,
+        points,
+      });
+      if (!created) {
+        Alert.alert("خطأ", "تعذر إنشاء المهمة.");
+        return;
+      }
+
+      setCheckpoints((prev) =>
+        prev.map((cp: any) => (cp.id === created.checkpoint.id ? created.checkpoint : cp))
+      );
+      setExpandedCheckpoints((prev) => {
+        const next = new Set(prev);
+        next.add(created.checkpoint.id);
+        return next;
+      });
+      setAddTaskModalVisible(false);
+      setAddTaskCheckpointTarget(null);
+    } catch (e) {
+      console.error("Failed to create task:", e);
+      Alert.alert("خطأ", "تعذر إنشاء المهمة.");
+    } finally {
+      setSavingCrud(false);
+    }
+  };
+
+  const requestDeleteCheckpoint = (cp: any) => {
+    if (!canDeleteCheckpoint(cp)) return;
+    Alert.alert("حذف المرحلة", `هل تريد حذف "${cp.name}"؟`, [
+      { text: "إلغاء", style: "cancel" },
+      {
+        text: "حذف",
+        style: "destructive",
+        onPress: () => {
+          void (async () => {
+            try {
+              setSavingCrud(true);
+              if (cp.notifications) {
+                await cancelCheckpointNotifications(cp.id);
+              }
+              const tasks = cp.tasks ?? [];
+              for (const task of tasks) {
+                if (task?.notifications) {
+                  await cancelTaskNotifications(task.id);
+                }
+              }
+
+              const deleted = await deleteCheckpoint(cp.id);
+              if (!deleted) {
+                Alert.alert("خطأ", "تعذر حذف المرحلة.");
+                return;
+              }
+
+              setCheckpoints((prev) => prev.filter((checkpoint: any) => checkpoint.id !== cp.id));
+              setExpandedCheckpoints((prev) => {
+                const next = new Set(prev);
+                next.delete(cp.id);
+                return next;
+              });
+              setExpandedTasks((prev) => {
+                const next = new Set<string>();
+                prev.forEach((key) => {
+                  if (!key.startsWith(`${cp.id}_`)) next.add(key);
+                });
+                return next;
+              });
+            } catch (e) {
+              console.error("Failed to delete checkpoint:", e);
+              Alert.alert("خطأ", "تعذر حذف المرحلة.");
+            } finally {
+              setSavingCrud(false);
+            }
+          })();
+        },
+      },
+    ]);
+  };
+
+  const requestDeleteTask = (cp: any, task: any) => {
+    if (!canDeleteTask(task)) return;
+    Alert.alert("حذف المهمة", `هل تريد حذف "${task.name}"؟`, [
+      { text: "إلغاء", style: "cancel" },
+      {
+        text: "حذف",
+        style: "destructive",
+        onPress: () => {
+          void (async () => {
+            try {
+              setSavingCrud(true);
+              if (task.notifications) {
+                await cancelTaskNotifications(task.id);
+              }
+
+              const updated = await deleteTaskFromCheckpoint({
+                checkpointId: cp.id,
+                taskId: task.id,
+              });
+              if (!updated) {
+                Alert.alert("خطأ", "تعذر حذف المهمة.");
+                return;
+              }
+
+              setCheckpoints((prev) =>
+                prev.map((checkpoint: any) =>
+                  checkpoint.id === updated.checkpoint.id ? updated.checkpoint : checkpoint
+                )
+              );
+              setExpandedTasks((prev) => {
+                const next = new Set(prev);
+                next.delete(`${cp.id}_${task.id}`);
+                return next;
+              });
+            } catch (e) {
+              console.error("Failed to delete task:", e);
+              Alert.alert("خطأ", "تعذر حذف المهمة.");
+            } finally {
+              setSavingCrud(false);
+            }
+          })();
+        },
+      },
+    ]);
+  };
+
+  const toggleDefaultCheckpointNotifications = async (cp: any) => {
+    try {
+      await stopSoundPreview();
+      const nextEnabled = !Boolean(cp.notifications);
+      const effectiveTime = await resolveTodayPrayerTimeForCheckpoint(cp);
+      const effectiveTitle = String(cp.notification_title ?? "").trim() || `تذكير: ${cp.name}`;
+      const effectiveText = String(cp.notification_text ?? "").trim() || `حان وقت ${cp.name}`;
+      const effectiveSound = "adhan.mp3";
+
+      const updated = await updateCheckpointNotificationSettings({
+        checkpointId: cp.id,
+        notifications: nextEnabled,
+        notificationTime: effectiveTime,
+        notificationTitle: effectiveTitle,
+        notificationText: effectiveText,
+        notificationSound: effectiveSound,
+      });
+
+      if (!updated) {
+        Alert.alert("خطأ", "تعذر تحديث إعدادات تنبيه المرحلة.");
+        return;
+      }
+
+      setCheckpoints((prev) =>
+        prev.map((checkpoint: any) =>
+          checkpoint.id === updated.checkpoint.id ? updated.checkpoint : checkpoint
+        )
+      );
+
+      if (nextEnabled) {
+        const scheduled = await scheduleCheckpointNotifications({
+          checkpointId: cp.id,
+          checkpointName: cp.name,
+          repeat: cp.repeat ?? "daily",
+          repeatDays: cp.repeat_days ?? "",
+          notificationTime: effectiveTime,
+          notificationTitle: effectiveTitle,
+          notificationText: effectiveText,
+          notificationSound: effectiveSound,
+        });
+
+        if (!scheduled) {
+          Alert.alert("تنبيه", "تم الحفظ ولكن تعذر جدولة إشعار المرحلة.");
+        }
+      } else {
+        await cancelCheckpointNotifications(cp.id);
+      }
+    } catch (e) {
+      console.error("Failed to toggle default checkpoint notifications:", e);
+      Alert.alert("خطأ", "حدث خطأ أثناء تحديث إعدادات التنبيه.");
+    }
+  };
+
+  const openTaskNotificationMenu = (cp: any, task: any) => {
     setSelectedNotificationTarget({
       type: "task",
       checkpointId: cp.id,
@@ -580,12 +892,13 @@ export default function TimelineScreen() {
       itemName: task.name,
       repeat: task.repeat ?? "daily",
       repeatDays: task.repeat_days ?? "",
+      isDefault: isDefaultTask(task),
     });
     setNotificationsEnabled(Boolean(task.notifications));
     setNotificationTime(parseHHmmToDate(task.notification_time || cp.time || "08:00"));
     setNotificationTitle(String(task.notification_title ?? "").trim());
     setNotificationText(String(task.notification_text ?? "").trim());
-    setNotificationSound(String(task.notification_sound || "default"));
+    setNotificationSound(isDefaultTask(task) ? "default" : String(task.notification_sound || "default"));
     setNotificationModalVisible(true);
   };
 
@@ -598,6 +911,7 @@ export default function TimelineScreen() {
       itemName: cp.name,
       repeat: cp.repeat ?? "daily",
       repeatDays: cp.repeat_days ?? "",
+      isDefault: isDefaultCheckpoint(cp),
     });
     setNotificationsEnabled(Boolean(cp.notifications));
     setNotificationTime(parseHHmmToDate(cp.notification_time || cp.time || "08:00"));
@@ -625,13 +939,15 @@ export default function TimelineScreen() {
       setSavingNotificationSettings(true);
 
       if (selectedNotificationTarget.type === "task") {
+        const effectiveSound = selectedNotificationTarget.isDefault ? "default" : normalizedSound;
+
         const updated = await updateTaskNotificationSettings({
           taskId: selectedNotificationTarget.itemId,
           notifications: notificationsEnabled,
           notificationTime: notificationTimeHHmm,
           notificationTitle: normalizedTitle,
           notificationText: normalizedText,
-          notificationSound: normalizedSound,
+          notificationSound: effectiveSound,
         });
 
         if (!updated) {
@@ -652,7 +968,7 @@ export default function TimelineScreen() {
             notificationTime: notificationTimeHHmm,
             notificationTitle: normalizedTitle,
             notificationText: normalizedText,
-            notificationSound: normalizedSound,
+            notificationSound: effectiveSound,
           });
 
           if (!scheduled) {
@@ -662,13 +978,34 @@ export default function TimelineScreen() {
           await cancelTaskNotifications(selectedNotificationTarget.itemId);
         }
       } else {
+        let effectiveTime = notificationTimeHHmm;
+        let effectiveSound = normalizedSound;
+        let effectiveTitle = normalizedTitle;
+        let effectiveText = normalizedText;
+
+        if (selectedNotificationTarget.isDefault) {
+          const currentCheckpoint = checkpoints.find(
+            (checkpoint: any) => checkpoint.id === selectedNotificationTarget.checkpointId
+          );
+          effectiveTime = currentCheckpoint
+            ? await resolveTodayPrayerTimeForCheckpoint(currentCheckpoint)
+            : notificationTimeHHmm;
+          effectiveSound = "adhan.mp3";
+          effectiveTitle =
+            String(currentCheckpoint?.notification_title ?? "").trim() ||
+            `تذكير: ${selectedNotificationTarget.itemName}`;
+          effectiveText =
+            String(currentCheckpoint?.notification_text ?? "").trim() ||
+            `حان وقت ${selectedNotificationTarget.itemName}`;
+        }
+
         const updated = await updateCheckpointNotificationSettings({
           checkpointId: selectedNotificationTarget.checkpointId,
           notifications: notificationsEnabled,
-          notificationTime: notificationTimeHHmm,
-          notificationTitle: normalizedTitle,
-          notificationText: normalizedText,
-          notificationSound: normalizedSound,
+          notificationTime: effectiveTime,
+          notificationTitle: effectiveTitle,
+          notificationText: effectiveText,
+          notificationSound: effectiveSound,
         });
 
         if (!updated) {
@@ -686,10 +1023,10 @@ export default function TimelineScreen() {
             checkpointName: selectedNotificationTarget.itemName,
             repeat: selectedNotificationTarget.repeat,
             repeatDays: selectedNotificationTarget.repeatDays,
-            notificationTime: notificationTimeHHmm,
-            notificationTitle: normalizedTitle,
-            notificationText: normalizedText,
-            notificationSound: normalizedSound,
+            notificationTime: effectiveTime,
+            notificationTitle: effectiveTitle,
+            notificationText: effectiveText,
+            notificationSound: effectiveSound,
           });
 
           if (!scheduled) {
@@ -765,6 +1102,9 @@ export default function TimelineScreen() {
       Alert.alert("خطأ", "تعذر تشغيل معاينة الصوت");
     }
   };
+  const isDefaultTaskModal =
+    selectedNotificationTarget?.type === "task" && Boolean(selectedNotificationTarget?.isDefault);
+
   if (err) {
     return (
       <View style={styles.screen}>
@@ -837,6 +1177,14 @@ export default function TimelineScreen() {
         data={checkpointsForSelectedDay}
         keyExtractor={(cp) => cp.id}
         contentContainerStyle={{ paddingVertical: 18, paddingHorizontal: 14 }}
+        ListHeaderComponent={
+          <View style={styles.addCheckpointRow}>
+            <Pressable style={styles.addCheckpointButton} onPress={openAddCheckpointModal}>
+              <Plus size={16} color="#E5E7EB" />
+              <Text style={styles.addCheckpointButtonText}>إضافة مرحلة</Text>
+            </Pressable>
+          </View>
+        }
         renderItem={({ item: cp }) => {
           const CpIcon = ICON_MAP[String(cp.icon || "").toLowerCase()];
           const color = cp.color || "#7B6CF6";
@@ -881,6 +1229,10 @@ export default function TimelineScreen() {
                         style={styles.taskMenuButton}
                         onPress={(event) => {
                           event.stopPropagation();
+                          if (isDefaultCheckpoint(cp)) {
+                            void toggleDefaultCheckpointNotifications(cp);
+                            return;
+                          }
                           openCheckpointNotificationMenu(cp);
                         }}
                       >
@@ -889,6 +1241,30 @@ export default function TimelineScreen() {
                         ) : (
                           <BellOff size={16} color="#E5E7EB" />
                         )}
+                      </Pressable>
+                    )}
+
+                    {canAddTaskToCheckpoint(cp) && (
+                      <Pressable
+                        style={styles.taskMenuButton}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          openAddTaskModal(cp);
+                        }}
+                      >
+                        <Plus size={16} color="#E5E7EB" />
+                      </Pressable>
+                    )}
+
+                    {canDeleteCheckpoint(cp) && (
+                      <Pressable
+                        style={styles.taskMenuButton}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          requestDeleteCheckpoint(cp);
+                        }}
+                      >
+                        <Trash2 size={16} color="#FCA5A5" />
                       </Pressable>
                     )}
                   </View>
@@ -974,6 +1350,18 @@ export default function TimelineScreen() {
                                 ) : (
                                   <BellOff size={16} color="#E5E7EB" />
                                 )}
+                              </Pressable>
+                            )}
+
+                            {canDeleteTask(t) && (
+                              <Pressable
+                                style={styles.taskMenuButton}
+                                onPress={(event) => {
+                                  event.stopPropagation();
+                                  requestDeleteTask(cp, t);
+                                }}
+                              >
+                                <Trash2 size={16} color="#FCA5A5" />
                               </Pressable>
                             )}
                           </Pressable>
@@ -1067,6 +1455,127 @@ export default function TimelineScreen() {
         }}
       />
       <Modal
+        visible={addCheckpointModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAddCheckpointModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>إضافة مرحلة جديدة</Text>
+
+            <View style={styles.modalField}>
+              <Text style={styles.modalLabel}>اسم المرحلة</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={newCheckpointName}
+                onChangeText={setNewCheckpointName}
+                placeholder="مثال: مراجعة القرآن"
+                placeholderTextColor="#94A3B8"
+                textAlign="right"
+              />
+            </View>
+
+            <View style={styles.modalRow}>
+              <Text style={styles.modalLabel}>وقت المرحلة</Text>
+              <Pressable style={styles.timeSelectButton} onPress={() => setShowAddCheckpointTimePicker(true)}>
+                <Text style={styles.timeSelectText}>{toArabicDigits(toHHmm(newCheckpointTime))}</Text>
+              </Pressable>
+            </View>
+
+            {showAddCheckpointTimePicker && (
+              <DateTimePicker
+                value={newCheckpointTime}
+                mode="time"
+                display="default"
+                onChange={onAddCheckpointTimeChanged}
+              />
+            )}
+
+            <View style={styles.modalActions}>
+              <Pressable
+                style={[styles.modalButton, styles.modalCancel]}
+                onPress={() => setAddCheckpointModalVisible(false)}
+              >
+                <Text style={styles.modalCancelText}>إلغاء</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalButton, styles.modalSave, savingCrud && { opacity: 0.65 }]}
+                onPress={() => void saveNewCheckpoint()}
+                disabled={savingCrud}
+              >
+                <Text style={styles.modalSaveText}>حفظ</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={addTaskModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAddTaskModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>إضافة مهمة جديدة</Text>
+            <Text style={styles.modalTaskName} numberOfLines={2}>
+              {addTaskCheckpointTarget?.name ?? ""}
+            </Text>
+
+            <View style={styles.modalField}>
+              <Text style={styles.modalLabel}>اسم المهمة</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={newTaskName}
+                onChangeText={setNewTaskName}
+                placeholder="مثال: جلسة ذكر"
+                placeholderTextColor="#94A3B8"
+                textAlign="right"
+              />
+            </View>
+
+            <View style={styles.modalField}>
+              <Text style={styles.modalLabel}>النقاط (اختياري)</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={newTaskPoints}
+                onChangeText={setNewTaskPoints}
+                keyboardType="numeric"
+                placeholder="0"
+                placeholderTextColor="#94A3B8"
+                textAlign="right"
+              />
+            </View>
+
+            <View style={styles.modalHintRow}>
+              <Text style={styles.modalHintText}>سيتم تعيين وقت المهمة تلقائياً من وقت المرحلة</Text>
+            </View>
+
+            <View style={styles.modalActions}>
+              <Pressable
+                style={[styles.modalButton, styles.modalCancel]}
+                onPress={() => {
+                  setAddTaskModalVisible(false);
+                  setAddTaskCheckpointTarget(null);
+                }}
+              >
+                <Text style={styles.modalCancelText}>إلغاء</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalButton, styles.modalSave, savingCrud && { opacity: 0.65 }]}
+                onPress={() => void saveNewTask()}
+                disabled={savingCrud}
+              >
+                <Text style={styles.modalSaveText}>حفظ</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
         visible={notificationModalVisible}
         transparent
         animationType="fade"
@@ -1095,71 +1604,75 @@ export default function TimelineScreen() {
               </Pressable>
             </View>
 
-            <View style={styles.modalField}>
-              <Text style={styles.modalLabel}>عنوان التنبيه</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={notificationTitle}
-                onChangeText={setNotificationTitle}
-                placeholder="تذكير: اسم المهمة"
-                placeholderTextColor="#94A3B8"
-                textAlign="right"
-              />
-            </View>
+            {!isDefaultTaskModal && (
+              <>
+                <View style={styles.modalField}>
+                  <Text style={styles.modalLabel}>عنوان التنبيه</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={notificationTitle}
+                    onChangeText={setNotificationTitle}
+                    placeholder="تذكير: اسم المهمة"
+                    placeholderTextColor="#94A3B8"
+                    textAlign="right"
+                  />
+                </View>
 
-            <View style={styles.modalField}>
-              <Text style={styles.modalLabel}>نص التنبيه</Text>
-              <TextInput
-                style={[styles.modalInput, styles.modalInputMultiline]}
-                value={notificationText}
-                onChangeText={setNotificationText}
-                placeholder="حان وقت ..."
-                placeholderTextColor="#94A3B8"
-                textAlign="right"
-                multiline
-              />
-            </View>
+                <View style={styles.modalField}>
+                  <Text style={styles.modalLabel}>نص التنبيه</Text>
+                  <TextInput
+                    style={[styles.modalInput, styles.modalInputMultiline]}
+                    value={notificationText}
+                    onChangeText={setNotificationText}
+                    placeholder="حان وقت ..."
+                    placeholderTextColor="#94A3B8"
+                    textAlign="right"
+                    multiline
+                  />
+                </View>
 
-            <View style={styles.modalField}>
-              <Text style={styles.modalLabel}>صوت التنبيه</Text>
-              <View style={styles.soundOptionsRow}>
-                {SOUND_OPTIONS.map((option) => (
-                  <View key={option} style={styles.soundOptionGroup}>
-                    <Pressable
-                      style={[
-                        styles.soundOptionButton,
-                        notificationSound === option && styles.soundOptionButtonActive,
-                      ]}
-                      onPress={() => setNotificationSound(option)}
-                    >
-                      <Text style={styles.soundOptionText}>
-                        {option === "default" ? "الصوت الافتراضي" : option}
-                      </Text>
-                    </Pressable>
-                    {isPreviewableSound(option) && (
-                      <Pressable
-                        style={styles.soundPreviewButton}
-                        onPress={() => void playSoundPreview(option)}
-                      >
-                        {previewingSound === option ? (
-                          <Square size={14} color="#E5E7EB" />
-                        ) : (
-                          <Play size={14} color="#E5E7EB" />
+                <View style={styles.modalField}>
+                  <Text style={styles.modalLabel}>صوت التنبيه</Text>
+                  <View style={styles.soundOptionsRow}>
+                    {SOUND_OPTIONS.map((option) => (
+                      <View key={option} style={styles.soundOptionGroup}>
+                        <Pressable
+                          style={[
+                            styles.soundOptionButton,
+                            notificationSound === option && styles.soundOptionButtonActive,
+                          ]}
+                          onPress={() => setNotificationSound(option)}
+                        >
+                          <Text style={styles.soundOptionText}>
+                            {option === "default" ? "الصوت الافتراضي" : option}
+                          </Text>
+                        </Pressable>
+                        {isPreviewableSound(option) && (
+                          <Pressable
+                            style={styles.soundPreviewButton}
+                            onPress={() => void playSoundPreview(option)}
+                          >
+                            {previewingSound === option ? (
+                              <Square size={14} color="#E5E7EB" />
+                            ) : (
+                              <Play size={14} color="#E5E7EB" />
+                            )}
+                          </Pressable>
                         )}
-                      </Pressable>
-                    )}
+                      </View>
+                    ))}
                   </View>
-                ))}
-              </View>
-              <TextInput
-                style={styles.modalInput}
-                value={notificationSound}
-                onChangeText={setNotificationSound}
-                placeholder="default أو adhan.wav"
-                placeholderTextColor="#94A3B8"
-                textAlign="right"
-              />
-            </View>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={notificationSound}
+                    onChangeText={setNotificationSound}
+                    placeholder="default أو adhan.wav"
+                    placeholderTextColor="#94A3B8"
+                    textAlign="right"
+                  />
+                </View>
+              </>
+            )}
 
             {showTimePicker && (
               <DateTimePicker
@@ -1211,6 +1724,26 @@ const styles = StyleSheet.create({
   },
   title: { color: "white", fontSize: 18, marginTop: 16 },
   errText: { color: "#FCA5A5", marginTop: 10 },
+  addCheckpointRow: {
+    alignItems: "flex-start",
+    marginBottom: 14,
+  },
+  addCheckpointButton: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  addCheckpointButtonText: {
+    color: "#E5E7EB",
+    fontSize: 13,
+    fontWeight: "700",
+  },
 
   fixedTopBarContainer: {
     paddingTop: 8,
@@ -1610,6 +2143,15 @@ const styles = StyleSheet.create({
     marginTop: 6,
     flexDirection: "row-reverse",
     gap: 10,
+  },
+  modalHintRow: {
+    marginTop: 2,
+    marginBottom: 8,
+  },
+  modalHintText: {
+    color: "#94A3B8",
+    fontSize: 12,
+    textAlign: "right",
   },
   modalButton: {
     flex: 1,
