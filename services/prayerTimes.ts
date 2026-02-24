@@ -36,8 +36,25 @@ export interface HijriMonthDayCard {
   hijriYear: string;
   weekdayAr: string;
   gregorianKey: string;
+  gregorianDay: string;
+  gregorianMonthAr: string;
   isToday: boolean;
 }
+
+const GREGORIAN_MONTH_AR: Record<string, string> = {
+  January: "\u064A\u0646\u0627\u064A\u0631",
+  February: "\u0641\u0628\u0631\u0627\u064A\u0631",
+  March: "\u0645\u0627\u0631\u0633",
+  April: "\u0623\u0628\u0631\u064A\u0644",
+  May: "\u0645\u0627\u064A\u0648",
+  June: "\u064A\u0648\u0646\u064A\u0648",
+  July: "\u064A\u0648\u0644\u064A\u0648",
+  August: "\u0623\u063A\u0633\u0637\u0633",
+  September: "\u0633\u0628\u062A\u0645\u0628\u0631",
+  October: "\u0623\u0643\u062A\u0648\u0628\u0631",
+  November: "\u0646\u0648\u0641\u0645\u0628\u0631",
+  December: "\u062F\u064A\u0633\u0645\u0628\u0631",
+};
 
 export const FALLBACK_TIMES: PrayerTimes = {
   fajr: "05:01",
@@ -111,11 +128,11 @@ export async function getLocationLabel(
 
       const country = addr.country || namedetails["country:ar"];
 
-      if (city && country) return `${city}? ${country}`;
+      if (city && country) return `${city}، ${country}`;
       if (country) return country;
 
       const displayName = String(osm?.display_name ?? "").trim();
-      if (displayName) return displayName.split(",").join("?");
+      if (displayName) return displayName.split(",").join("،");
     }
 
     const places = await Location.reverseGeocodeAsync({ latitude, longitude });
@@ -135,7 +152,7 @@ export async function getLocationLabel(
       }
     }
 
-    if (city && countryArabic) return `${city}? ${countryArabic}`;
+    if (city && countryArabic) return `${city}، ${countryArabic}`;
     if (countryArabic) return countryArabic;
     return city ?? null;
   } catch (error) {
@@ -189,6 +206,42 @@ export async function fetchPrayerTimes(
     };
   } catch (error) {
     console.error("Error fetching prayer times:", error);
+    return null;
+  }
+}
+
+export async function fetchPrayerTimesForDate(
+  lat: number,
+  lng: number,
+  gregorianKey: string,
+  method: number = 5
+): Promise<PrayerTimes | null> {
+  try {
+    const [year, month, day] = gregorianKey.split("-");
+    if (!year || !month || !day) return null;
+    const dateParam = `${day}-${month}-${year}`;
+    const url =
+      `https://api.aladhan.com/v1/timings/${dateParam}` +
+      `?latitude=${lat}&longitude=${lng}&method=${method}`;
+
+    const response = await fetch(url);
+    if (!response.ok) return null;
+
+    const json = await response.json();
+    const data = json?.data;
+    const timings = data?.timings;
+    if (!timings) return null;
+
+    return {
+      fajr: String(timings.Fajr),
+      sunrise: String(timings.Sunrise),
+      dhuhr: String(timings.Dhuhr),
+      asr: String(timings.Asr),
+      maghrib: String(timings.Maghrib),
+      isha: String(timings.Isha),
+    };
+  } catch (error) {
+    console.error("Error fetching prayer times for date:", error);
     return null;
   }
 }
@@ -293,6 +346,8 @@ export async function fetchHijriMonthCalendar(
           hijriYear: String(h.year),
           weekdayAr: String(h.weekday.ar),
           gregorianKey,
+          gregorianDay: String(g.day),
+          gregorianMonthAr: GREGORIAN_MONTH_AR[String(g.month.en)] ?? String(g.month.en),
           isToday: gregorianKey === todayKey,
         };
       });
@@ -316,7 +371,7 @@ export async function initializePrayerTimes(): Promise<{
       times: FALLBACK_TIMES,
       lastThirdTime: FALLBACK_LAST_THIRD,
       date: null,
-      locationLabel: "?????? ??? ????",
+      locationLabel: "الموقع غير متاح",
       location: null,
     };
   }
@@ -328,13 +383,13 @@ export async function initializePrayerTimes(): Promise<{
       times: FALLBACK_TIMES,
       lastThirdTime: FALLBACK_LAST_THIRD,
       date: null,
-      locationLabel: "?????? ??? ????",
+      locationLabel: "الموقع غير متاح",
       location: null,
     };
   }
 
   const locationLabel =
-    (await getLocationLabel(location.latitude, location.longitude)) ?? "?????? ??? ????";
+    (await getLocationLabel(location.latitude, location.longitude)) ?? "الموقع غير متاح";
 
   const result = await fetchPrayerTimes(location.latitude, location.longitude);
 
@@ -389,3 +444,4 @@ function minutesToTime(minutes: number): string {
   const mins = Math.floor(minutes % 60);
   return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
 }
+

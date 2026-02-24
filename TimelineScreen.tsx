@@ -30,6 +30,8 @@ import {
   DateInfo,
   fetchHijriMonthCalendar,
   HijriMonthDayCard,
+  PrayerTimes,
+  fetchPrayerTimesForDate,
 } from "./services/prayerTimes";
 import { formatHijriDate, formatGregorianDate, toArabicDigits } from "./utils/dateFormat";
 import {
@@ -177,33 +179,53 @@ function CalendarHeader({
   dateInfo,
   locationLabel,
   totalPoints,
+  isDark,
+  onReturnToToday,
 }: {
   dateInfo: DateInfo | null;
   locationLabel: string;
   totalPoints: number;
+  isDark: boolean;
+  onReturnToToday: () => void;
 }) {
   return (
     <View style={styles.calendarHeader}>
-      <View style={styles.headerMetaRow}>
-        <View style={styles.locationPill}>
-          <MapPin size={14} color="#A5B4FC" />
-          <Text style={styles.locationText} numberOfLines={1}>
-            {locationLabel}
-          </Text>
+      <View style={styles.topRow}>
+        <View style={styles.topRowRight}>
+          <Image
+            source={
+              isDark ? require("./assets/logo-white.png") : require("./assets/logo-gradient.png")
+            }
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </View>
+
+        <View style={styles.topRowLeft}>
+          <View style={styles.locationPill}>
+            <MapPin size={14} color="#A5B4FC" />
+            <Text style={styles.locationText} numberOfLines={1}>
+              {locationLabel}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.secondRow}>
+        <View style={styles.dateCluster}>
+          <Text style={styles.hijriDate}>{dateInfo ? formatHijriDate(dateInfo.hijri) : "\u062C\u0627\u0631\u064A \u0627\u0644\u062A\u062D\u0645\u064A\u0644..."}</Text>
+          <Text style={styles.gregorianDate}>{dateInfo ? formatGregorianDate(dateInfo.gregorian) : ""}</Text>
         </View>
 
         <View style={styles.pointsCounter}>
           <Text style={styles.pointsCounterLabel}>نقاط اليوم</Text>
           <Text style={styles.pointsCounterValue}>{toArabicDigits(totalPoints)}</Text>
         </View>
-      </View>
 
-      <View style={styles.hijriContainer}>
-        <Calendar size={20} color="#7B6CF6" />
-        <Text style={styles.hijriDate}>{dateInfo ? formatHijriDate(dateInfo.hijri) : "جاري التحميل..."}</Text>
+        <Pressable style={styles.calendarIconWrap} onPress={onReturnToToday}>
+          <Calendar size={20} color="#7B6CF6" />
+        </Pressable>
       </View>
-
-      <Text style={styles.gregorianDate}>{dateInfo ? formatGregorianDate(dateInfo.gregorian) : ""}</Text>
     </View>
   );
 }
@@ -252,6 +274,53 @@ function gregorianDayKey(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+function toGregorianMonthAr(monthEn: string): string {
+  const map: Record<string, string> = {
+    January: "\u064A\u0646\u0627\u064A\u0631",
+    February: "\u0641\u0628\u0631\u0627\u064A\u0631",
+    March: "\u0645\u0627\u0631\u0633",
+    April: "\u0623\u0628\u0631\u064A\u0644",
+    May: "\u0645\u0627\u064A\u0648",
+    June: "\u064A\u0648\u0646\u064A\u0648",
+    July: "\u064A\u0648\u0644\u064A\u0648",
+    August: "\u0623\u063A\u0633\u0637\u0633",
+    September: "\u0633\u0628\u062A\u0645\u0628\u0631",
+    October: "\u0623\u0643\u062A\u0648\u0628\u0631",
+    November: "\u0646\u0648\u0641\u0645\u0628\u0631",
+    December: "\u062F\u064A\u0633\u0645\u0628\u0631",
+  };
+
+  return map[monthEn] ?? monthEn;
+}
+
+function normalizeDayWithoutLeadingZero(day: string): string {
+  const numeric = Number(day);
+  if (Number.isFinite(numeric)) return String(numeric);
+  const normalized = String(day).replace(/^0+/, "");
+  return normalized || "0";
+}
+
+function parseMinutes(hhmm: string): number {
+  const [h, m] = String(hhmm || "").split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return 0;
+  return h * 60 + m;
+}
+
+function formatMinutes(total: number): string {
+  const normalized = ((Math.floor(total) % (24 * 60)) + 24 * 60) % (24 * 60);
+  const h = Math.floor(normalized / 60);
+  const m = normalized % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function calculateLastThirdFromTimes(isha: string, fajr: string): string {
+  const ishaMinutes = parseMinutes(isha);
+  const fajrMinutes = parseMinutes(fajr);
+  const nightDuration =
+    fajrMinutes > ishaMinutes ? fajrMinutes - ishaMinutes : 24 * 60 - ishaMinutes + fajrMinutes;
+  return formatMinutes(ishaMinutes + (2 * nightDuration) / 3);
+}
+
 const SOUND_OPTIONS = ["default", "adhan"];
 const PREVIEWABLE_SOUND_ASSETS: Record<string, any> = {
   "adhan": require("./assets/sounds/adhan.mp3"),
@@ -266,6 +335,10 @@ export default function TimelineScreen() {
   const [selectedGregorianDayKey, setSelectedGregorianDayKey] = useState("");
   const [todayGregorianDayKey, setTodayGregorianDayKey] = useState("");
   const [locationLabel, setLocationLabel] = useState("الموقع غير متاح");
+  const [locationCoords, setLocationCoords] = useState<{ latitude: number; longitude: number } | null>(
+    null
+  );
+  const [selectedDayTimes, setSelectedDayTimes] = useState<PrayerTimes | null>(null);
 
   const [expandedCheckpoints, setExpandedCheckpoints] = useState<Set<string>>(new Set());
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
@@ -291,6 +364,7 @@ export default function TimelineScreen() {
   const [savingNotificationSettings, setSavingNotificationSettings] = useState(false);
   const soundPreviewInstance = useRef<Audio.Sound | null>(null);
   const dayCardsListRef = useRef<FlatList<HijriMonthDayCard> | null>(null);
+  const pendingDayScrollIndexRef = useRef<number | null>(null);
 
   const colorScheme = useColorScheme();
   const isDark = colorScheme !== "light";
@@ -306,6 +380,8 @@ export default function TimelineScreen() {
         const result = await initializePrayerTimes();
         setDateInfo(result.date);
         setLocationLabel(result.locationLabel);
+        setLocationCoords(result.location);
+        setSelectedDayTimes(result.times);
 
         await seedIfEmpty(result.times, result.lastThirdTime);
         const data = await loadCheckpoints();
@@ -320,6 +396,12 @@ export default function TimelineScreen() {
         }
 
         if (cards.length === 0) {
+          const fallbackDate = new Date();
+          const fallbackGregorianDay = result.date?.gregorian.day ?? String(fallbackDate.getDate());
+          const fallbackGregorianMonth =
+            result.date?.gregorian.month ??
+            fallbackDate.toLocaleString("en-US", { month: "long" });
+
           cards = [
             {
               hijriDay: result.date?.hijri.day ?? "1",
@@ -327,6 +409,8 @@ export default function TimelineScreen() {
               hijriYear: result.date?.hijri.year ?? "",
               weekdayAr: result.date?.hijri.weekdayAr ?? "",
               gregorianKey: todayKey,
+              gregorianDay: fallbackGregorianDay,
+              gregorianMonthAr: toGregorianMonthAr(fallbackGregorianMonth),
               isToday: true,
             },
           ];
@@ -356,6 +440,25 @@ export default function TimelineScreen() {
       setDoneState(state);
     })();
   }, [selectedGregorianDayKey]);
+
+  useEffect(() => {
+    if (!selectedGregorianDayKey || !locationCoords) return;
+    let active = true;
+
+    (async () => {
+      const times = await fetchPrayerTimesForDate(
+        locationCoords.latitude,
+        locationCoords.longitude,
+        selectedGregorianDayKey
+      );
+      if (!active || !times) return;
+      setSelectedDayTimes(times);
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedGregorianDayKey, locationCoords]);
 
   useEffect(() => {
     return () => {
@@ -388,6 +491,26 @@ export default function TimelineScreen() {
 
     return total;
   }, [checkpoints, doneState]);
+
+  const checkpointsForSelectedDay = useMemo(() => {
+    if (!selectedDayTimes) return checkpoints;
+
+    const timeByCheckpointId: Record<string, string> = {
+      cp_fajr: selectedDayTimes.fajr,
+      cp_sunrise: selectedDayTimes.sunrise,
+      cp_dhuhr: selectedDayTimes.dhuhr,
+      cp_asr: selectedDayTimes.asr,
+      cp_maghrib: selectedDayTimes.maghrib,
+      cp_isha: selectedDayTimes.isha,
+      cp_lastthird: calculateLastThirdFromTimes(selectedDayTimes.isha, selectedDayTimes.fajr),
+    };
+
+    return checkpoints.map((cp: any) => {
+      const nextTime = timeByCheckpointId[cp.id];
+      if (!nextTime) return cp;
+      return { ...cp, time: nextTime };
+    });
+  }, [checkpoints, selectedDayTimes]);
 
   const toggleCheckpoint = (checkpointId: string) => {
     setExpandedCheckpoints((prev) => {
@@ -433,7 +556,18 @@ export default function TimelineScreen() {
     setSelectedGregorianDayKey(todayGregorianDayKey);
     const index = monthDayCards.findIndex((day) => day.gregorianKey === todayGregorianDayKey);
     if (index >= 0) {
+      pendingDayScrollIndexRef.current = index;
       dayCardsListRef.current?.scrollToIndex({ index, animated: true });
+    }
+  };
+
+  const handleDayCardsScrollToIndexFailed = () => {
+    const index = pendingDayScrollIndexRef.current;
+    if (index == null) return;
+    const invertedIndex = monthDayCards.length - 1 - index;
+    pendingDayScrollIndexRef.current = invertedIndex;
+    if (invertedIndex >= 0) {
+      dayCardsListRef.current?.scrollToIndex({ index: invertedIndex, animated: true });
     }
   };
 
@@ -651,64 +785,58 @@ export default function TimelineScreen() {
       resizeMode="cover"
     >
       <View style={styles.backgroundOverlay} />
+      <View style={styles.fixedTopBarContainer}>
+        <CalendarHeader
+          dateInfo={dateInfo}
+          locationLabel={locationLabel}
+          totalPoints={totalPoints}
+          isDark={isDark}
+          onReturnToToday={handleReturnToToday}
+        />
+        <FlatList
+          ref={dayCardsListRef}
+          data={monthDayCards}
+          horizontal
+          inverted
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(day) => day.gregorianKey}
+          onScrollToIndexFailed={handleDayCardsScrollToIndexFailed}
+          contentContainerStyle={styles.dayCardsContainer}
+          renderItem={({ item: day }) => {
+            const selected = day.gregorianKey === selectedGregorianDayKey;
+            return (
+              <Pressable
+                style={[
+                  styles.dayCard,
+                  selected && styles.dayCardSelected,
+                  day.isToday && styles.dayCardToday,
+                ]}
+                onPress={() => handleSelectDay(day.gregorianKey)}
+              >
+                <Text style={[styles.dayCardWeekday, selected && styles.dayCardWeekdaySelected]}>
+                  {day.weekdayAr}
+                </Text>
+                <Text style={[styles.dayCardDay, selected && styles.dayCardDaySelected]}>
+                  {toArabicDigits(day.hijriDay)}
+                </Text>
+                <Text
+                  style={[
+                    styles.dayCardGregorianSmall,
+                    selected && styles.dayCardGregorianSmallSelected,
+                  ]}
+                >
+                  {`${toArabicDigits(normalizeDayWithoutLeadingZero(day.gregorianDay))} ${day.gregorianMonthAr}`}
+                </Text>
+              </Pressable>
+            );
+          }}
+        />
+      </View>
       <FlatList
-        data={checkpoints}
+        style={{ flex: 1 }}
+        data={checkpointsForSelectedDay}
         keyExtractor={(cp) => cp.id}
         contentContainerStyle={{ paddingVertical: 18, paddingHorizontal: 14 }}
-        ListHeaderComponent={
-          <View>
-            <View style={styles.dayStripHeader}>
-              <Pressable style={styles.todayButton} onPress={handleReturnToToday}>
-                <Text style={styles.todayButtonText}>العودة لليوم الحالي</Text>
-              </Pressable>
-            </View>
-            <FlatList
-              ref={dayCardsListRef}
-              data={monthDayCards}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={(day) => day.gregorianKey}
-              onScrollToIndexFailed={() => {}}
-              contentContainerStyle={styles.dayCardsContainer}
-              renderItem={({ item: day }) => {
-                const selected = day.gregorianKey === selectedGregorianDayKey;
-                return (
-                  <Pressable
-                    style={[
-                      styles.dayCard,
-                      selected && styles.dayCardSelected,
-                      day.isToday && styles.dayCardToday,
-                    ]}
-                    onPress={() => handleSelectDay(day.gregorianKey)}
-                  >
-                    <Text style={[styles.dayCardWeekday, selected && styles.dayCardWeekdaySelected]}>
-                      {day.weekdayAr}
-                    </Text>
-                    <Text style={[styles.dayCardDay, selected && styles.dayCardDaySelected]}>
-                      {toArabicDigits(day.hijriDay)}
-                    </Text>
-                  </Pressable>
-                );
-              }}
-            />
-            <View style={styles.logoWrap}>
-              <Image
-                source={
-                  isDark
-                    ? require("./assets/logo-white.png")
-                    : require("./assets/logo-gradient.png")
-                }
-                style={styles.logo}
-                resizeMode="contain"
-              />
-            </View>
-            <CalendarHeader
-              dateInfo={dateInfo}
-              locationLabel={locationLabel}
-              totalPoints={totalPoints}
-            />
-          </View>
-        }
         renderItem={({ item: cp }) => {
           const CpIcon = ICON_MAP[String(cp.icon || "").toLowerCase()];
           const color = cp.color || "#7B6CF6";
@@ -1084,37 +1212,24 @@ const styles = StyleSheet.create({
   title: { color: "white", fontSize: 18, marginTop: 16 },
   errText: { color: "#FCA5A5", marginTop: 10 },
 
-  logoWrap: {
-    alignItems: "center",
-    marginBottom: 6,
+  fixedTopBarContainer: {
+    paddingTop: 8,
+    paddingHorizontal: 14,
+    paddingBottom: 8,
+    backgroundColor: "rgba(10,14,26,0.96)",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.08)",
   },
   logo: {
-    width: 120,
-    height: 120,
-  },
-  dayStripHeader: {
-    alignItems: "flex-start",
-    marginBottom: 8,
-  },
-  todayButton: {
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderRadius: 999,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  todayButtonText: {
-    color: "#E5E7EB",
-    fontSize: 12,
-    fontWeight: "700",
+    width: 86,
+    height: 86,
   },
   dayCardsContainer: {
-    gap: 8,
-    paddingBottom: 10,
+    paddingBottom: 6,
+    paddingRight: 2,
   },
   dayCard: {
-    minWidth: 66,
+    minWidth: 74,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.15)",
     borderRadius: 12,
@@ -1123,7 +1238,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.04)",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 8,
+    marginLeft: 8,
   },
   dayCardSelected: {
     borderColor: "#818CF8",
@@ -1148,25 +1263,53 @@ const styles = StyleSheet.create({
   dayCardDaySelected: {
     color: "#FFFFFF",
   },
-
-  calendarHeader: {
-    alignItems: "center",
-    paddingVertical: 18,
-    marginBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.08)",
+  dayCardGregorianSmall: {
+    marginTop: 3,
+    color: "#94A3B8",
+    fontSize: 10,
+    lineHeight: 12,
   },
-  headerMetaRow: {
-    width: "100%",
+  dayCardGregorianSmallSelected: {
+    color: "#E2E8F0",
+  },
+  calendarHeader: {
+    paddingBottom: 12,
+    gap: 8,
+  },
+  topRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 10,
+    gap: 10,
+  },
+  topRowLeft: {
+    flex: 1,
+    alignItems: "flex-start",
+  },
+  topRowRight: {
+    alignItems: "flex-end",
+  },
+  secondRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: 8,
   },
-  locationPill: {
+  dateCluster: {
     flex: 1,
-    maxWidth: "75%",
+    alignItems: "flex-end",
+  },
+  calendarIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(123,108,246,0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(167,180,252,0.35)",
+  },
+  locationPill: {
     flexDirection: "row-reverse",
     alignItems: "center",
     gap: 6,
@@ -1174,6 +1317,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingVertical: 6,
     paddingHorizontal: 12,
+    maxWidth: "100%",
   },
   locationText: {
     color: "#E5E7EB",
@@ -1201,22 +1345,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
   },
-  hijriContainer: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 6,
-  },
   hijriDate: {
     color: "#E5E7EB",
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "700",
-    textAlign: "center",
+    textAlign: "right",
   },
   gregorianDate: {
     color: "#9CA3AF",
-    fontSize: 14,
-    textAlign: "center",
+    fontSize: 12,
+    textAlign: "right",
   },
 
   checkpointRow: {
