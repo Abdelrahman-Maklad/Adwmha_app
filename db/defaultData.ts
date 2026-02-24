@@ -9,7 +9,7 @@ type Times = {
   isha: string;
 };
 
-const CP_SOUND = "adhan.wav";
+const CP_SOUND = "adhan.mp3";
 
 export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
   const makeCpNotifText = (name: string) => `حان وقت ${name}`;

@@ -16,6 +16,7 @@ import {
   TextInput,
 } from "react-native";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import { Audio } from "expo-av";
 
 import { seedIfEmpty } from "./db/seed";
 import {
@@ -51,7 +52,10 @@ import {
   Check,
   Calendar,
   MapPin,
-  MoreVertical,
+  Bell,
+  BellOff,
+  Play,
+  Square,
 } from "lucide-react-native";
 
 const ICON_MAP: Record<string, any> = {
@@ -236,7 +240,10 @@ function toHHmm(date: Date): string {
   )}`;
 }
 
-const SOUND_OPTIONS = ["default", "adhan.wav"];
+const SOUND_OPTIONS = ["default", "adhan"];
+const PREVIEWABLE_SOUND_ASSETS: Record<string, any> = {
+  "adhan": require("./assets/sounds/adhan.mp3"),
+};
 
 export default function TimelineScreen() {
   const [checkpoints, setCheckpoints] = useState<any[]>([]);
@@ -264,8 +271,10 @@ export default function TimelineScreen() {
   const [notificationTitle, setNotificationTitle] = useState("");
   const [notificationText, setNotificationText] = useState("");
   const [notificationSound, setNotificationSound] = useState("default");
+  const [previewingSound, setPreviewingSound] = useState<string | null>(null);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [savingNotificationSettings, setSavingNotificationSettings] = useState(false);
+  const soundPreviewInstance = useRef<Audio.Sound | null>(null);
 
   const colorScheme = useColorScheme();
   const isDark = colorScheme !== "light";
@@ -297,18 +306,28 @@ export default function TimelineScreen() {
     })();
   }, []);
 
+  useEffect(() => {
+    return () => {
+      const current = soundPreviewInstance.current;
+      if (!current) return;
+      void current.stopAsync().catch(() => {});
+      void current.unloadAsync().catch(() => {});
+      soundPreviewInstance.current = null;
+    };
+  }, []);
+
   const totalPoints = useMemo(() => {
     let total = 0;
 
     checkpoints.forEach((cp: any) => {
       (cp.tasks ?? []).forEach((task: any) => {
-        const taskDone = doneState[task.id] ?? task.done ?? false;
+        const taskDone = Boolean(doneState[task.id]);
         if (taskDone && Number(task.points) > 0) {
           total += Number(task.points);
         }
 
         (task.checklist ?? []).forEach((item: any) => {
-          const itemDone = doneState[item.id] ?? item.done ?? false;
+          const itemDone = Boolean(doneState[item.id]);
           if (itemDone && Number(item.points) > 0) {
             total += Number(item.points);
           }
@@ -403,6 +422,7 @@ export default function TimelineScreen() {
     const normalizedSound = notificationSound.trim() || "default";
 
     try {
+      await stopSoundPreview();
       setSavingNotificationSettings(true);
 
       if (selectedNotificationTarget.type === "task") {
@@ -488,6 +508,62 @@ export default function TimelineScreen() {
       Alert.alert("خطأ", "حدث خطأ أثناء حفظ إعدادات التنبيه.");
     } finally {
       setSavingNotificationSettings(false);
+    }
+  };
+
+  const isPreviewableSound = (sound: string) =>
+    Boolean(sound) && sound !== "default" && Boolean(PREVIEWABLE_SOUND_ASSETS[sound]);
+
+  const stopSoundPreview = async () => {
+    const current = soundPreviewInstance.current;
+    if (!current) {
+      setPreviewingSound(null);
+      return;
+    }
+
+    try {
+      await current.stopAsync();
+    } catch {}
+    try {
+      await current.unloadAsync();
+    } catch {}
+
+    soundPreviewInstance.current = null;
+    setPreviewingSound(null);
+  };
+
+  const playSoundPreview = async (sound: string) => {
+    if (!isPreviewableSound(sound)) {
+      Alert.alert("خطأ", "ملف الصوت غير متاح للمعاينة");
+      return;
+    }
+
+    if (previewingSound === sound) {
+      await stopSoundPreview();
+      return;
+    }
+
+    try {
+      await stopSoundPreview();
+
+      const { sound: instance } = await Audio.Sound.createAsync(
+        PREVIEWABLE_SOUND_ASSETS[sound],
+        { shouldPlay: true }
+      );
+
+      soundPreviewInstance.current = instance;
+      setPreviewingSound(sound);
+
+      instance.setOnPlaybackStatusUpdate((status) => {
+        if (!status.isLoaded) return;
+        if (status.didJustFinish) {
+          void stopSoundPreview();
+        }
+      });
+    } catch (e) {
+      console.error("Sound preview failed:", e);
+      await stopSoundPreview();
+      Alert.alert("خطأ", "تعذر تشغيل معاينة الصوت");
     }
   };
   if (err) {
@@ -581,7 +657,11 @@ export default function TimelineScreen() {
                           openCheckpointNotificationMenu(cp);
                         }}
                       >
-                        <MoreVertical size={16} color="#E5E7EB" />
+                        {cp.notifications ? (
+                          <Bell size={16} color="#E5E7EB" />
+                        ) : (
+                          <BellOff size={16} color="#E5E7EB" />
+                        )}
                       </Pressable>
                     )}
                   </View>
@@ -593,7 +673,7 @@ export default function TimelineScreen() {
                       const TaskIcon = ICON_MAP[String(t.icon || "").toLowerCase()];
                       const isMain = t.type === "main_task";
                       const taskColor = isMain ? color : "#9CA3AF";
-                      const taskDone = doneState[t.id] ?? t.done ?? false;
+                      const taskDone = Boolean(doneState[t.id]);
                       const hasChecklist = (t.checklist ?? []).length > 0;
                       const isTaskExpanded = expandedTasks.has(`${cp.id}_${t.id}`);
 
@@ -662,7 +742,11 @@ export default function TimelineScreen() {
                                   openTaskNotificationMenu(cp, t);
                                 }}
                               >
-                                <MoreVertical size={16} color="#E5E7EB" />
+                                {t.notifications ? (
+                                  <Bell size={16} color="#E5E7EB" />
+                                ) : (
+                                  <BellOff size={16} color="#E5E7EB" />
+                                )}
                               </Pressable>
                             )}
                           </Pressable>
@@ -672,7 +756,7 @@ export default function TimelineScreen() {
                               <View style={styles.checklistContainer}>
                                 {(t.checklist ?? []).map((item: any) => {
                                   const ItemIcon = ICON_MAP[String(item.icon || "").toLowerCase()];
-                                  const itemDone = doneState[item.id] ?? item.done ?? false;
+                                  const itemDone = Boolean(doneState[item.id]);
 
                                   return (
                                     <Pressable
@@ -813,18 +897,31 @@ export default function TimelineScreen() {
               <Text style={styles.modalLabel}>صوت التنبيه</Text>
               <View style={styles.soundOptionsRow}>
                 {SOUND_OPTIONS.map((option) => (
-                  <Pressable
-                    key={option}
-                    style={[
-                      styles.soundOptionButton,
-                      notificationSound === option && styles.soundOptionButtonActive,
-                    ]}
-                    onPress={() => setNotificationSound(option)}
-                  >
-                    <Text style={styles.soundOptionText}>
-                      {option === "default" ? "الصوت الافتراضي" : option}
-                    </Text>
-                  </Pressable>
+                  <View key={option} style={styles.soundOptionGroup}>
+                    <Pressable
+                      style={[
+                        styles.soundOptionButton,
+                        notificationSound === option && styles.soundOptionButtonActive,
+                      ]}
+                      onPress={() => setNotificationSound(option)}
+                    >
+                      <Text style={styles.soundOptionText}>
+                        {option === "default" ? "الصوت الافتراضي" : option}
+                      </Text>
+                    </Pressable>
+                    {isPreviewableSound(option) && (
+                      <Pressable
+                        style={styles.soundPreviewButton}
+                        onPress={() => void playSoundPreview(option)}
+                      >
+                        {previewingSound === option ? (
+                          <Square size={14} color="#E5E7EB" />
+                        ) : (
+                          <Play size={14} color="#E5E7EB" />
+                        )}
+                      </Pressable>
+                    )}
+                  </View>
                 ))}
               </View>
               <TextInput
@@ -850,6 +947,7 @@ export default function TimelineScreen() {
               <Pressable
                 style={[styles.modalButton, styles.modalCancel]}
                 onPress={() => {
+                  void stopSoundPreview();
                   setNotificationModalVisible(false);
                   setSelectedNotificationTarget(null);
                 }}
@@ -1183,6 +1281,11 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 8,
   },
+  soundOptionGroup: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 6,
+  },
   soundOptionButton: {
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.16)",
@@ -1199,6 +1302,16 @@ const styles = StyleSheet.create({
     color: "#E5E7EB",
     fontSize: 12,
     fontWeight: "600",
+  },
+  soundPreviewButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "rgba(255,255,255,0.06)",
   },
   modalActions: {
     marginTop: 6,
@@ -1228,5 +1341,4 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
-
 

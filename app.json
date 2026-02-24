@@ -32,7 +32,7 @@
       [
         "expo-notifications",
         {
-          "sounds": ["assets/sounds/adhan.wav"]
+          "sounds": ["assets/sounds/adhan.mp3"]
         }
       ]
     ]

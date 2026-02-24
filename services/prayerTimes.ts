@@ -83,21 +83,40 @@ export async function getLocationLabel(
   longitude: number
 ): Promise<string | null> {
   try {
-    const osmUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&accept-language=ar`;
+    const osmUrl =
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2` +
+      `&lat=${latitude}&lon=${longitude}` +
+      `&accept-language=ar&addressdetails=1&namedetails=1`;
     const osmRes = await fetch(osmUrl, {
       headers: {
         "Accept-Language": "ar",
+        // Nominatim may throttle/block anonymous clients; explicit UA improves reliability.
+        "User-Agent": "rn-steps/1.0 (mobile-app)",
       },
-    }
-  );
+    });
 
     if (osmRes.ok) {
       const osm = await osmRes.json();
       const addr = osm?.address ?? {};
-      const city = addr.city || addr.town || addr.village || addr.state;
-      const country = addr.country;
+      const namedetails = osm?.namedetails ?? {};
+
+      const city =
+        namedetails["name:ar"] ||
+        addr.city ||
+        addr.town ||
+        addr.village ||
+        addr.municipality ||
+        addr.suburb ||
+        addr.state;
+
+      const country = addr.country || namedetails["country:ar"];
+
       if (city && country) return `${city}، ${country}`;
       if (country) return country;
+
+      // Fallback from full display name (usually localized by accept-language).
+      const displayName = String(osm?.display_name ?? "").trim();
+      if (displayName) return displayName.split(",").join("،");
     }
 
     const places = await Location.reverseGeocodeAsync({ latitude, longitude });
@@ -290,3 +309,4 @@ function minutesToTime(minutes: number): string {
   const mins = Math.floor(minutes % 60);
   return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
 }
+
