@@ -20,6 +20,12 @@ function ensureRepeatFields(item: any) {
 function ensureTaskFields(task: any) {
   ensureRepeatFields(task);
   if (task.locked === undefined) task.locked = false;
+  if (task.notification_title === undefined) task.notification_title = "";
+}
+
+function ensureCheckpointFields(cp: any) {
+  ensureRepeatFields(cp);
+  if (cp.notification_title === undefined) cp.notification_title = "";
 }
 
 function buildTaskNotificationCapabilityMap(defaultDocs: any[]) {
@@ -70,14 +76,22 @@ function migrateCheckpointDoc(cp: any, taskNotifCapabilityMap: Map<string, boole
 
   const beforeRepeat = cp.repeat;
   const beforeRepeatDays = cp.repeat_days;
-  ensureRepeatFields(cp);
-  if (beforeRepeat !== cp.repeat || beforeRepeatDays !== cp.repeat_days) changed = true;
+  const beforeNotificationTitle = cp.notification_title;
+  ensureCheckpointFields(cp);
+  if (
+    beforeRepeat !== cp.repeat ||
+    beforeRepeatDays !== cp.repeat_days ||
+    beforeNotificationTitle !== cp.notification_title
+  ) {
+    changed = true;
+  }
 
   for (const task of cp.tasks ?? []) {
     const tRepeat = task.repeat;
     const tRepeatDays = task.repeat_days;
     const tLocked = task.locked;
     const tEnableDisableNotifications = task.enable_disable_notifications;
+    const tNotificationTitle = task.notification_title;
     ensureTaskFields(task);
     if (taskNotifCapabilityMap.has(task.id)) {
       task.enable_disable_notifications = taskNotifCapabilityMap.get(task.id);
@@ -86,7 +100,8 @@ function migrateCheckpointDoc(cp: any, taskNotifCapabilityMap: Map<string, boole
       tRepeat !== task.repeat ||
       tRepeatDays !== task.repeat_days ||
       tLocked !== task.locked ||
-      tEnableDisableNotifications !== task.enable_disable_notifications
+      tEnableDisableNotifications !== task.enable_disable_notifications ||
+      tNotificationTitle !== task.notification_title
     ) {
       changed = true;
     }
@@ -121,6 +136,7 @@ function migrateCheckpointDoc(cp: any, taskNotifCapabilityMap: Map<string, boole
         notifications: false,
         enable_disable_notifications: false,
         notification_time: "",
+        notification_title: "",
         notification_sound: "",
         notification_text: "",
         icon: "pray",

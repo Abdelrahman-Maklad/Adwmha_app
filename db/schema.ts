@@ -33,6 +33,7 @@ const taskSchema = {
     "notifications",
     "enable_disable_notifications",
     "notification_time",
+    "notification_title",
     "notification_sound",
     "notification_text",
 
@@ -63,6 +64,7 @@ const taskSchema = {
     notifications: { type: "boolean" },
     enable_disable_notifications: { type: "boolean" },
     notification_time: { type: "string" },   // "" | "api" | "HH:mm"
+    notification_title: { type: "string" },
     notification_sound: { type: "string" },  // "" | "adhan.mp3" ...
     notification_text: { type: "string" },
 
@@ -100,6 +102,7 @@ export const checkpointSchema = {
     "notifications",
     "enable_disable_notifications",
     "notification_time",
+    "notification_title",
     "notification_sound",
     "notification_text",
 
@@ -133,6 +136,7 @@ export const checkpointSchema = {
     notifications: { type: "boolean" },
     enable_disable_notifications: { type: "boolean" },
     notification_time: { type: "string" },
+    notification_title: { type: "string" },
     notification_sound: { type: "string" },
     notification_text: { type: "string" },
 

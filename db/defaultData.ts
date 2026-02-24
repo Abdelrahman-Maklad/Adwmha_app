@@ -9,10 +9,11 @@ type Times = {
   isha: string;
 };
 
-const CP_SOUND = "adhan.mp3";
+const CP_SOUND = "adhan.wav";
 
 export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
-  const makeCpNotifText = (name: string) => `وقت ${name}`;
+  const makeCpNotifText = (name: string) => `حان وقت ${name}`;
+  const makeCpNotifTitle = (name: string) => `تذكير: ${name}`;
 
   return [
     {
@@ -32,6 +33,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
       notifications: true,
       enable_disable_notifications: true,
       notification_time: times.fajr,
+      notification_title: makeCpNotifTitle("الفجر"),
       notification_sound: CP_SOUND,
       notification_text: makeCpNotifText("الفجر"),
 
@@ -57,6 +59,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           notifications: false,
           enable_disable_notifications: false,
           notification_time: "",
+          notification_title: "",
           notification_sound: "",
           notification_text: "",
 
@@ -82,6 +85,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           notifications: false,
           enable_disable_notifications: false,
           notification_time: "",
+          notification_title: "",
           notification_sound: "",
           notification_text: "",
 
@@ -111,6 +115,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           notifications: false,
           enable_disable_notifications: false,
           notification_time: "",
+          notification_title: "",
           notification_sound: "",
           notification_text: "",
 
@@ -140,6 +145,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
       notifications: true,
       enable_disable_notifications: true,
       notification_time: times.sunrise,
+      notification_title: makeCpNotifTitle("الشروق"),
       notification_sound: CP_SOUND,
       notification_text: makeCpNotifText("الشروق"),
 
@@ -165,6 +171,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           notifications: false,
           enable_disable_notifications: false,
           notification_time: "",
+          notification_title: "",
           notification_sound: "",
           notification_text: "",
 
@@ -190,6 +197,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           notifications: false,
           enable_disable_notifications: false,
           notification_time: "",
+          notification_title: "",
           notification_sound: "",
           notification_text: "",
 
@@ -219,6 +227,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
       notifications: true,
       enable_disable_notifications: true,
       notification_time: times.dhuhr,
+      notification_title: makeCpNotifTitle("الظهر"),
       notification_sound: CP_SOUND,
       notification_text: makeCpNotifText("الظهر"),
 
@@ -244,6 +253,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           notifications: false,
           enable_disable_notifications: false,
           notification_time: "",
+          notification_title: "",
           notification_sound: "",
           notification_text: "",
 
@@ -269,6 +279,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           notifications: false,
           enable_disable_notifications: false,
           notification_time: "",
+          notification_title: "",
           notification_sound: "",
           notification_text: "",
 
@@ -298,6 +309,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           notifications: false,
           enable_disable_notifications: false,
           notification_time: "",
+          notification_title: "",
           notification_sound: "",
           notification_text: "",
 
@@ -327,6 +339,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           notifications: false,
           enable_disable_notifications: false,
           notification_time: "",
+          notification_title: "",
           notification_sound: "",
           notification_text: "",
 
@@ -356,6 +369,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
       notifications: true,
       enable_disable_notifications: true,
       notification_time: times.asr,
+      notification_title: makeCpNotifTitle("العصر"),
       notification_sound: CP_SOUND,
       notification_text: makeCpNotifText("العصر"),
 
@@ -381,6 +395,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           notifications: false,
           enable_disable_notifications: false,
           notification_time: "",
+          notification_title: "",
           notification_sound: "",
           notification_text: "",
 
@@ -410,6 +425,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           notifications: false,
           enable_disable_notifications: true,
           notification_time: "",
+          notification_title: "?????: ????? ??????",
           notification_sound: "",
           notification_text: "حان وقت أذكار المساء",
 
@@ -439,6 +455,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
       notifications: true,
       enable_disable_notifications: true,
       notification_time: times.maghrib,
+      notification_title: makeCpNotifTitle("المغرب"),
       notification_sound: CP_SOUND,
       notification_text: makeCpNotifText("المغرب"),
 
@@ -464,6 +481,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           notifications: false,
           enable_disable_notifications: false,
           notification_time: "",
+          notification_title: "",
           notification_sound: "",
           notification_text: "",
 
@@ -493,6 +511,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           notifications: false,
           enable_disable_notifications: false,
           notification_time: "",
+          notification_title: "",
           notification_sound: "",
           notification_text: "",
 
@@ -522,6 +541,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
       notifications: true,
       enable_disable_notifications: true,
       notification_time: times.isha,
+      notification_title: makeCpNotifTitle("العشاء"),
       notification_sound: CP_SOUND,
       notification_text: makeCpNotifText("العشاء"),
 
@@ -547,6 +567,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           notifications: false,
           enable_disable_notifications: false,
           notification_time: "",
+          notification_title: "",
           notification_sound: "",
           notification_text: "",
 
@@ -576,6 +597,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           notifications: false,
           enable_disable_notifications: false,
           notification_time: "",
+          notification_title: "",
           notification_sound: "",
           notification_text: "",
 
@@ -605,6 +627,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
       notifications: true,
       enable_disable_notifications: true,
       notification_time: lastThirdTime,
+      notification_title: makeCpNotifTitle("الثلث الأخير من الليل"),
       notification_sound: CP_SOUND,
       notification_text: makeCpNotifText("الثلث الأخير من الليل"),
 
@@ -630,6 +653,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           notifications: false,
           enable_disable_notifications: false,
           notification_time: "",
+          notification_title: "",
           notification_sound: "",
           notification_text: "",
 
@@ -655,6 +679,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           notifications: false,
           enable_disable_notifications: false,
           notification_time: "",
+          notification_title: "",
           notification_sound: "",
           notification_text: "",
 
@@ -680,6 +705,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           notifications: false,
           enable_disable_notifications: false,
           notification_time: "",
+          notification_title: "",
           notification_sound: "",
           notification_text: "",
 
@@ -693,6 +719,11 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
     }
   ];
 }
+
+
+
+
+
 
 
 

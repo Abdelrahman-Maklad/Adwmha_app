@@ -105,6 +105,9 @@ export async function updateTaskNotificationSettings(params: {
   taskId: string;
   notifications: boolean;
   notificationTime: string;
+  notificationTitle: string;
+  notificationText: string;
+  notificationSound: string;
 }) {
   const db = await getDb();
   const rows = await db.getAllAsync<{ id: string; doc: string }>(
@@ -121,6 +124,9 @@ export async function updateTaskNotificationSettings(params: {
       ...tasks[index],
       notifications: params.notifications,
       notification_time: params.notificationTime,
+      notification_title: params.notificationTitle,
+      notification_text: params.notificationText,
+      notification_sound: params.notificationSound,
     };
 
     const nextCp = {
@@ -134,6 +140,43 @@ export async function updateTaskNotificationSettings(params: {
     );
 
     return { checkpoint: nextCp, task: nextTask };
+  }
+
+  return null;
+}
+
+export async function updateCheckpointNotificationSettings(params: {
+  checkpointId: string;
+  notifications: boolean;
+  notificationTime: string;
+  notificationTitle: string;
+  notificationText: string;
+  notificationSound: string;
+}) {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ id: string; doc: string }>(
+    "SELECT id, doc FROM checkpoints;"
+  );
+
+  for (const row of rows) {
+    const cp = JSON.parse(row.doc);
+    if (cp.id !== params.checkpointId) continue;
+
+    const nextCp = {
+      ...cp,
+      notifications: params.notifications,
+      notification_time: params.notificationTime,
+      notification_title: params.notificationTitle,
+      notification_text: params.notificationText,
+      notification_sound: params.notificationSound,
+    };
+
+    await db.runAsync(
+      "INSERT OR REPLACE INTO checkpoints (id, doc) VALUES (?, ?);",
+      [nextCp.id, JSON.stringify(nextCp)]
+    );
+
+    return { checkpoint: nextCp };
   }
 
   return null;

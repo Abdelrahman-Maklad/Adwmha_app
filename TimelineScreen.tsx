@@ -13,16 +13,23 @@ import {
   Modal,
   Switch,
   Alert,
+  TextInput,
 } from "react-native";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 
 import { seedIfEmpty } from "./db/seed";
-import { loadCheckpoints, updateTaskNotificationSettings } from "./db/queries";
+import {
+  loadCheckpoints,
+  updateCheckpointNotificationSettings,
+  updateTaskNotificationSettings,
+} from "./db/queries";
 import { loadCompletionState, saveCompletionState } from "./db/progress";
 import { initializePrayerTimes, DateInfo } from "./services/prayerTimes";
 import { formatHijriDate, formatGregorianDate, toArabicDigits } from "./utils/dateFormat";
 import {
+  cancelCheckpointNotifications,
   cancelTaskNotifications,
+  scheduleCheckpointNotifications,
   scheduleTaskNotifications,
 } from "./services/taskNotifications";
 import StartScreen from "./StartScreen";
@@ -184,7 +191,7 @@ function CalendarHeader({
 
       <View style={styles.hijriContainer}>
         <Calendar size={20} color="#7B6CF6" />
-        <Text style={styles.hijriDate}>{dateInfo ? formatHijriDate(dateInfo.hijri) : "???? ???????..."}</Text>
+        <Text style={styles.hijriDate}>{dateInfo ? formatHijriDate(dateInfo.hijri) : "جاري التحميل..."}</Text>
       </View>
 
       <Text style={styles.gregorianDate}>{dateInfo ? formatGregorianDate(dateInfo.gregorian) : ""}</Text>
@@ -229,28 +236,34 @@ function toHHmm(date: Date): string {
   )}`;
 }
 
+const SOUND_OPTIONS = ["default", "adhan.wav"];
+
 export default function TimelineScreen() {
   const [checkpoints, setCheckpoints] = useState<any[]>([]);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
   const [dateInfo, setDateInfo] = useState<DateInfo | null>(null);
-  const [locationLabel, setLocationLabel] = useState("?????? ??? ????");
+  const [locationLabel, setLocationLabel] = useState("الموقع غير متاح");
 
   const [expandedCheckpoints, setExpandedCheckpoints] = useState<Set<string>>(new Set());
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
 
   const [doneState, setDoneState] = useState<Record<string, boolean>>({});
   const [notificationModalVisible, setNotificationModalVisible] = useState(false);
-  const [selectedTaskNotification, setSelectedTaskNotification] = useState<{
+  const [selectedNotificationTarget, setSelectedNotificationTarget] = useState<{
+    type: "task" | "checkpoint";
     checkpointId: string;
     checkpointName: string;
-    taskId: string;
-    taskName: string;
+    itemId: string;
+    itemName: string;
     repeat: string;
     repeatDays: unknown;
   } | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [notificationTime, setNotificationTime] = useState(new Date());
+  const [notificationTitle, setNotificationTitle] = useState("");
+  const [notificationText, setNotificationText] = useState("");
+  const [notificationSound, setNotificationSound] = useState("default");
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [savingNotificationSettings, setSavingNotificationSettings] = useState(false);
 
@@ -340,17 +353,39 @@ export default function TimelineScreen() {
     }
   };
 
-  const openTaskNotificationMenu = (cp: any, task: any) => {
-    setSelectedTaskNotification({
+    const openTaskNotificationMenu = (cp: any, task: any) => {
+    setSelectedNotificationTarget({
+      type: "task",
       checkpointId: cp.id,
       checkpointName: cp.name,
-      taskId: task.id,
-      taskName: task.name,
+      itemId: task.id,
+      itemName: task.name,
       repeat: task.repeat ?? "daily",
       repeatDays: task.repeat_days ?? "",
     });
     setNotificationsEnabled(Boolean(task.notifications));
     setNotificationTime(parseHHmmToDate(task.notification_time || cp.time || "08:00"));
+    setNotificationTitle(String(task.notification_title ?? "").trim());
+    setNotificationText(String(task.notification_text ?? "").trim());
+    setNotificationSound(String(task.notification_sound || "default"));
+    setNotificationModalVisible(true);
+  };
+
+  const openCheckpointNotificationMenu = (cp: any) => {
+    setSelectedNotificationTarget({
+      type: "checkpoint",
+      checkpointId: cp.id,
+      checkpointName: cp.name,
+      itemId: cp.id,
+      itemName: cp.name,
+      repeat: cp.repeat ?? "daily",
+      repeatDays: cp.repeat_days ?? "",
+    });
+    setNotificationsEnabled(Boolean(cp.notifications));
+    setNotificationTime(parseHHmmToDate(cp.notification_time || cp.time || "08:00"));
+    setNotificationTitle(String(cp.notification_title ?? "").trim());
+    setNotificationText(String(cp.notification_text ?? "").trim());
+    setNotificationSound(String(cp.notification_sound || "default"));
     setNotificationModalVisible(true);
   };
 
@@ -359,56 +394,102 @@ export default function TimelineScreen() {
     setShowTimePicker(false);
   };
 
-  const saveTaskNotification = async () => {
-    if (!selectedTaskNotification) return;
+  const saveNotificationSettings = async () => {
+    if (!selectedNotificationTarget) return;
 
     const notificationTimeHHmm = toHHmm(notificationTime);
+    const normalizedTitle = notificationTitle.trim();
+    const normalizedText = notificationText.trim();
+    const normalizedSound = notificationSound.trim() || "default";
 
     try {
       setSavingNotificationSettings(true);
 
-      const updated = await updateTaskNotificationSettings({
-        taskId: selectedTaskNotification.taskId,
-        notifications: notificationsEnabled,
-        notificationTime: notificationTimeHHmm,
-      });
-
-      if (!updated) {
-        Alert.alert("خطأ", "تعذر تحديث إعدادات التنبيه للمهمة.");
-        return;
-      }
-
-      setCheckpoints((prev) =>
-        prev.map((cp: any) => (cp.id === updated.checkpoint.id ? updated.checkpoint : cp))
-      );
-
-      if (notificationsEnabled) {
-        const scheduled = await scheduleTaskNotifications({
-          taskId: selectedTaskNotification.taskId,
-          taskName: selectedTaskNotification.taskName,
-          checkpointName: selectedTaskNotification.checkpointName,
-          repeat: selectedTaskNotification.repeat,
-          repeatDays: selectedTaskNotification.repeatDays,
+      if (selectedNotificationTarget.type === "task") {
+        const updated = await updateTaskNotificationSettings({
+          taskId: selectedNotificationTarget.itemId,
+          notifications: notificationsEnabled,
           notificationTime: notificationTimeHHmm,
+          notificationTitle: normalizedTitle,
+          notificationText: normalizedText,
+          notificationSound: normalizedSound,
         });
 
-        if (!scheduled) {
-          Alert.alert("تنبيه", "تم الحفظ لكن تعذر جدولة الإشعار. تحقق من الصلاحيات والوقت.");
+        if (!updated) {
+          Alert.alert("خطأ", "تعذر تحديث إعدادات تنبيه المهمة.");
+          return;
+        }
+
+        setCheckpoints((prev) =>
+          prev.map((cp: any) => (cp.id === updated.checkpoint.id ? updated.checkpoint : cp))
+        );
+
+        if (notificationsEnabled) {
+          const scheduled = await scheduleTaskNotifications({
+            taskId: selectedNotificationTarget.itemId,
+            taskName: selectedNotificationTarget.itemName,
+            repeat: selectedNotificationTarget.repeat,
+            repeatDays: selectedNotificationTarget.repeatDays,
+            notificationTime: notificationTimeHHmm,
+            notificationTitle: normalizedTitle,
+            notificationText: normalizedText,
+            notificationSound: normalizedSound,
+          });
+
+          if (!scheduled) {
+            Alert.alert("تنبيه", "تم الحفظ ولكن تعذر جدولة إشعار المهمة.");
+          }
+        } else {
+          await cancelTaskNotifications(selectedNotificationTarget.itemId);
         }
       } else {
-        await cancelTaskNotifications(selectedTaskNotification.taskId);
+        const updated = await updateCheckpointNotificationSettings({
+          checkpointId: selectedNotificationTarget.checkpointId,
+          notifications: notificationsEnabled,
+          notificationTime: notificationTimeHHmm,
+          notificationTitle: normalizedTitle,
+          notificationText: normalizedText,
+          notificationSound: normalizedSound,
+        });
+
+        if (!updated) {
+          Alert.alert("خطأ", "تعذر تحديث إعدادات تنبيه المرحلة.");
+          return;
+        }
+
+        setCheckpoints((prev) =>
+          prev.map((cp: any) => (cp.id === updated.checkpoint.id ? updated.checkpoint : cp))
+        );
+
+        if (notificationsEnabled) {
+          const scheduled = await scheduleCheckpointNotifications({
+            checkpointId: selectedNotificationTarget.checkpointId,
+            checkpointName: selectedNotificationTarget.itemName,
+            repeat: selectedNotificationTarget.repeat,
+            repeatDays: selectedNotificationTarget.repeatDays,
+            notificationTime: notificationTimeHHmm,
+            notificationTitle: normalizedTitle,
+            notificationText: normalizedText,
+            notificationSound: normalizedSound,
+          });
+
+          if (!scheduled) {
+            Alert.alert("تنبيه", "تم الحفظ ولكن تعذر جدولة إشعار المرحلة.");
+          }
+        } else {
+          await cancelCheckpointNotifications(selectedNotificationTarget.checkpointId);
+        }
       }
 
       setNotificationModalVisible(false);
-      setSelectedTaskNotification(null);
+      setSelectedNotificationTarget(null);
     } catch (e) {
-      console.error("Failed to save task notification settings:", e);
+      console.error("Failed to save notification settings:", e);
       Alert.alert("خطأ", "حدث خطأ أثناء حفظ إعدادات التنبيه.");
     } finally {
       setSavingNotificationSettings(false);
     }
   };
-
   if (err) {
     return (
       <View style={styles.screen}>
@@ -491,6 +572,18 @@ export default function TimelineScreen() {
                     <View style={styles.timePill}>
                       <Text style={[styles.timeText, { color }]}>{formatTimeLabel(cp.time)}</Text>
                     </View>
+
+                    {cp.enable_disable_notifications && (
+                      <Pressable
+                        style={styles.taskMenuButton}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          openCheckpointNotificationMenu(cp);
+                        }}
+                      >
+                        <MoreVertical size={16} color="#E5E7EB" />
+                      </Pressable>
+                    )}
                   </View>
                 </Pressable>
 
@@ -662,7 +755,6 @@ export default function TimelineScreen() {
           );
         }}
       />
-
       <Modal
         visible={notificationModalVisible}
         transparent
@@ -673,7 +765,7 @@ export default function TimelineScreen() {
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>إعدادات التنبيه</Text>
             <Text style={styles.modalTaskName} numberOfLines={2}>
-              {selectedTaskNotification?.taskName ?? ""}
+              {selectedNotificationTarget?.itemName ?? ""}
             </Text>
 
             <View style={styles.modalRow}>
@@ -692,6 +784,59 @@ export default function TimelineScreen() {
               </Pressable>
             </View>
 
+            <View style={styles.modalField}>
+              <Text style={styles.modalLabel}>عنوان التنبيه</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={notificationTitle}
+                onChangeText={setNotificationTitle}
+                placeholder="تذكير: اسم المهمة"
+                placeholderTextColor="#94A3B8"
+                textAlign="right"
+              />
+            </View>
+
+            <View style={styles.modalField}>
+              <Text style={styles.modalLabel}>نص التنبيه</Text>
+              <TextInput
+                style={[styles.modalInput, styles.modalInputMultiline]}
+                value={notificationText}
+                onChangeText={setNotificationText}
+                placeholder="حان وقت ..."
+                placeholderTextColor="#94A3B8"
+                textAlign="right"
+                multiline
+              />
+            </View>
+
+            <View style={styles.modalField}>
+              <Text style={styles.modalLabel}>صوت التنبيه</Text>
+              <View style={styles.soundOptionsRow}>
+                {SOUND_OPTIONS.map((option) => (
+                  <Pressable
+                    key={option}
+                    style={[
+                      styles.soundOptionButton,
+                      notificationSound === option && styles.soundOptionButtonActive,
+                    ]}
+                    onPress={() => setNotificationSound(option)}
+                  >
+                    <Text style={styles.soundOptionText}>
+                      {option === "default" ? "الصوت الافتراضي" : option}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              <TextInput
+                style={styles.modalInput}
+                value={notificationSound}
+                onChangeText={setNotificationSound}
+                placeholder="default أو adhan.wav"
+                placeholderTextColor="#94A3B8"
+                textAlign="right"
+              />
+            </View>
+
             {showTimePicker && (
               <DateTimePicker
                 value={notificationTime}
@@ -706,7 +851,7 @@ export default function TimelineScreen() {
                 style={[styles.modalButton, styles.modalCancel]}
                 onPress={() => {
                   setNotificationModalVisible(false);
-                  setSelectedTaskNotification(null);
+                  setSelectedNotificationTarget(null);
                 }}
               >
                 <Text style={styles.modalCancelText}>إلغاء</Text>
@@ -717,7 +862,7 @@ export default function TimelineScreen() {
                   styles.modalSave,
                   savingNotificationSettings && { opacity: 0.65 },
                 ]}
-                onPress={() => void saveTaskNotification()}
+                onPress={() => void saveNotificationSettings()}
                 disabled={savingNotificationSettings}
               >
                 <Text style={styles.modalSaveText}>حفظ</Text>
@@ -996,10 +1141,27 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 12,
   },
+  modalField: {
+    gap: 8,
+  },
   modalLabel: {
     color: "#E5E7EB",
     fontSize: 14,
     fontWeight: "600",
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    color: "#F3F4F6",
+    fontSize: 14,
+  },
+  modalInputMultiline: {
+    minHeight: 72,
+    textAlignVertical: "top",
   },
   timeSelectButton: {
     minWidth: 98,
@@ -1015,6 +1177,28 @@ const styles = StyleSheet.create({
     color: "#F3F4F6",
     fontSize: 14,
     fontWeight: "700",
+  },
+  soundOptionsRow: {
+    flexDirection: "row-reverse",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  soundOptionButton: {
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  soundOptionButtonActive: {
+    borderColor: "#818CF8",
+    backgroundColor: "rgba(99,102,241,0.25)",
+  },
+  soundOptionText: {
+    color: "#E5E7EB",
+    fontSize: 12,
+    fontWeight: "600",
   },
   modalActions: {
     marginTop: 6,
@@ -1044,3 +1228,5 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
+
+
