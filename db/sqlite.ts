@@ -22,5 +22,14 @@ export async function getDb() {
     );
   `);
 
+  await _db.execAsync(`
+    CREATE TABLE IF NOT EXISTS daily_completion_state (
+      day_key TEXT NOT NULL,
+      item_id TEXT NOT NULL,
+      done INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (day_key, item_id)
+    );
+  `);
+
   return _db;
 }

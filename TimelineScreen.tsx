@@ -24,8 +24,13 @@ import {
   updateCheckpointNotificationSettings,
   updateTaskNotificationSettings,
 } from "./db/queries";
-import { loadCompletionState, saveCompletionState } from "./db/progress";
-import { initializePrayerTimes, DateInfo } from "./services/prayerTimes";
+import { loadCompletionStateByDay, saveCompletionStateByDay } from "./db/progress";
+import {
+  initializePrayerTimes,
+  DateInfo,
+  fetchHijriMonthCalendar,
+  HijriMonthDayCard,
+} from "./services/prayerTimes";
 import { formatHijriDate, formatGregorianDate, toArabicDigits } from "./utils/dateFormat";
 import {
   cancelCheckpointNotifications,
@@ -240,6 +245,13 @@ function toHHmm(date: Date): string {
   )}`;
 }
 
+function gregorianDayKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 const SOUND_OPTIONS = ["default", "adhan"];
 const PREVIEWABLE_SOUND_ASSETS: Record<string, any> = {
   "adhan": require("./assets/sounds/adhan.mp3"),
@@ -250,6 +262,9 @@ export default function TimelineScreen() {
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
   const [dateInfo, setDateInfo] = useState<DateInfo | null>(null);
+  const [monthDayCards, setMonthDayCards] = useState<HijriMonthDayCard[]>([]);
+  const [selectedGregorianDayKey, setSelectedGregorianDayKey] = useState("");
+  const [todayGregorianDayKey, setTodayGregorianDayKey] = useState("");
   const [locationLabel, setLocationLabel] = useState("الموقع غير متاح");
 
   const [expandedCheckpoints, setExpandedCheckpoints] = useState<Set<string>>(new Set());
@@ -275,6 +290,7 @@ export default function TimelineScreen() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [savingNotificationSettings, setSavingNotificationSettings] = useState(false);
   const soundPreviewInstance = useRef<Audio.Sound | null>(null);
+  const dayCardsListRef = useRef<FlatList<HijriMonthDayCard> | null>(null);
 
   const colorScheme = useColorScheme();
   const isDark = colorScheme !== "light";
@@ -284,18 +300,45 @@ export default function TimelineScreen() {
       try {
         setLoading(true);
 
+        const todayKey = gregorianDayKey(new Date());
+        setTodayGregorianDayKey(todayKey);
+
         const result = await initializePrayerTimes();
         setDateInfo(result.date);
         setLocationLabel(result.locationLabel);
 
         await seedIfEmpty(result.times, result.lastThirdTime);
+        const data = await loadCheckpoints();
 
-        const [data, persistedDoneState] = await Promise.all([
-          loadCheckpoints(),
-          loadCompletionState(),
-        ]);
+        let cards: HijriMonthDayCard[] = [];
+        if (result.location) {
+          cards = await fetchHijriMonthCalendar(
+            new Date(),
+            result.location.latitude,
+            result.location.longitude
+          );
+        }
+
+        if (cards.length === 0) {
+          cards = [
+            {
+              hijriDay: result.date?.hijri.day ?? "1",
+              hijriMonthAr: result.date?.hijri.monthAr ?? "",
+              hijriYear: result.date?.hijri.year ?? "",
+              weekdayAr: result.date?.hijri.weekdayAr ?? "",
+              gregorianKey: todayKey,
+              isToday: true,
+            },
+          ];
+        }
+
+        const initialSelectedKey =
+          cards.find((day) => day.isToday)?.gregorianKey ?? cards[0]?.gregorianKey ?? todayKey;
+        const persistedDoneState = await loadCompletionStateByDay(initialSelectedKey);
 
         setCheckpoints(data);
+        setMonthDayCards(cards);
+        setSelectedGregorianDayKey(initialSelectedKey);
         setDoneState(persistedDoneState);
         setExpandedCheckpoints(new Set(data.map((cp: any) => cp.id)));
       } catch (e: any) {
@@ -305,6 +348,14 @@ export default function TimelineScreen() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (!selectedGregorianDayKey) return;
+    (async () => {
+      const state = await loadCompletionStateByDay(selectedGregorianDayKey);
+      setDoneState(state);
+    })();
+  }, [selectedGregorianDayKey]);
 
   useEffect(() => {
     return () => {
@@ -358,6 +409,7 @@ export default function TimelineScreen() {
   };
 
   const toggleItemDone = async (itemId: string) => {
+    if (!selectedGregorianDayKey) return;
     const nextDone = !(doneState[itemId] ?? false);
 
     setDoneState((prev) => ({
@@ -366,9 +418,22 @@ export default function TimelineScreen() {
     }));
 
     try {
-      await saveCompletionState(itemId, nextDone);
+      await saveCompletionStateByDay(selectedGregorianDayKey, itemId, nextDone);
     } catch (e) {
       console.error("Failed to persist completion state:", e);
+    }
+  };
+
+  const handleSelectDay = (dayKey: string) => {
+    setSelectedGregorianDayKey(dayKey);
+  };
+
+  const handleReturnToToday = () => {
+    if (!todayGregorianDayKey) return;
+    setSelectedGregorianDayKey(todayGregorianDayKey);
+    const index = monthDayCards.findIndex((day) => day.gregorianKey === todayGregorianDayKey);
+    if (index >= 0) {
+      dayCardsListRef.current?.scrollToIndex({ index, animated: true });
     }
   };
 
@@ -592,6 +657,40 @@ export default function TimelineScreen() {
         contentContainerStyle={{ paddingVertical: 18, paddingHorizontal: 14 }}
         ListHeaderComponent={
           <View>
+            <View style={styles.dayStripHeader}>
+              <Pressable style={styles.todayButton} onPress={handleReturnToToday}>
+                <Text style={styles.todayButtonText}>العودة لليوم الحالي</Text>
+              </Pressable>
+            </View>
+            <FlatList
+              ref={dayCardsListRef}
+              data={monthDayCards}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(day) => day.gregorianKey}
+              onScrollToIndexFailed={() => {}}
+              contentContainerStyle={styles.dayCardsContainer}
+              renderItem={({ item: day }) => {
+                const selected = day.gregorianKey === selectedGregorianDayKey;
+                return (
+                  <Pressable
+                    style={[
+                      styles.dayCard,
+                      selected && styles.dayCardSelected,
+                      day.isToday && styles.dayCardToday,
+                    ]}
+                    onPress={() => handleSelectDay(day.gregorianKey)}
+                  >
+                    <Text style={[styles.dayCardWeekday, selected && styles.dayCardWeekdaySelected]}>
+                      {day.weekdayAr}
+                    </Text>
+                    <Text style={[styles.dayCardDay, selected && styles.dayCardDaySelected]}>
+                      {toArabicDigits(day.hijriDay)}
+                    </Text>
+                  </Pressable>
+                );
+              }}
+            />
             <View style={styles.logoWrap}>
               <Image
                 source={
@@ -993,6 +1092,62 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
   },
+  dayStripHeader: {
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  todayButton: {
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  todayButtonText: {
+    color: "#E5E7EB",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  dayCardsContainer: {
+    gap: 8,
+    paddingBottom: 10,
+  },
+  dayCard: {
+    minWidth: 66,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 8,
+  },
+  dayCardSelected: {
+    borderColor: "#818CF8",
+    backgroundColor: "rgba(99,102,241,0.25)",
+  },
+  dayCardToday: {
+    borderColor: "rgba(34,197,94,0.7)",
+  },
+  dayCardWeekday: {
+    color: "#94A3B8",
+    fontSize: 11,
+    marginBottom: 4,
+  },
+  dayCardWeekdaySelected: {
+    color: "#E5E7EB",
+  },
+  dayCardDay: {
+    color: "#F8FAFC",
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  dayCardDaySelected: {
+    color: "#FFFFFF",
+  },
 
   calendarHeader: {
     alignItems: "center",
@@ -1341,4 +1496,3 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
-

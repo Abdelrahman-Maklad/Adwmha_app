@@ -1,9 +1,12 @@
 import { getDb } from "./sqlite";
 
-export async function loadCompletionState(): Promise<Record<string, boolean>> {
+export async function loadCompletionStateByDay(
+  dayKey: string
+): Promise<Record<string, boolean>> {
   const db = await getDb();
   const rows = await db.getAllAsync<{ item_id: string; done: number }>(
-    "SELECT item_id, done FROM completion_state;"
+    "SELECT item_id, done FROM daily_completion_state WHERE day_key = ?;",
+    [dayKey]
   );
 
   return rows.reduce<Record<string, boolean>>((acc, row) => {
@@ -12,10 +15,19 @@ export async function loadCompletionState(): Promise<Record<string, boolean>> {
   }, {});
 }
 
-export async function saveCompletionState(itemId: string, done: boolean): Promise<void> {
+export async function saveCompletionStateByDay(
+  dayKey: string,
+  itemId: string,
+  done: boolean
+): Promise<void> {
   const db = await getDb();
   await db.runAsync(
-    "INSERT OR REPLACE INTO completion_state (item_id, done) VALUES (?, ?);",
-    [itemId, done ? 1 : 0]
+    "INSERT OR REPLACE INTO daily_completion_state (day_key, item_id, done) VALUES (?, ?, ?);",
+    [dayKey, itemId, done ? 1 : 0]
   );
+}
+
+export async function clearDayCompletionState(dayKey: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync("DELETE FROM daily_completion_state WHERE day_key = ?;", [dayKey]);
 }
