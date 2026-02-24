@@ -338,6 +338,19 @@ const SOUND_OPTIONS = ["default", "adhan"];
 const PREVIEWABLE_SOUND_ASSETS: Record<string, any> = {
   "adhan": require("./assets/sounds/adhan.mp3"),
 };
+const REPEAT_MODE_OPTIONS = [
+  { label: "يومي", value: "daily" as const },
+  { label: "أسبوعي", value: "weekly" as const },
+];
+const WEEKDAY_OPTIONS = [
+  { label: "الأحد", value: "Sunday" },
+  { label: "الاثنين", value: "Monday" },
+  { label: "الثلاثاء", value: "Tuesday" },
+  { label: "الأربعاء", value: "Wednesday" },
+  { label: "الخميس", value: "Thursday" },
+  { label: "الجمعة", value: "Friday" },
+  { label: "السبت", value: "Saturday" },
+];
 
 export default function TimelineScreen() {
   const [checkpoints, setCheckpoints] = useState<any[]>([]);
@@ -381,8 +394,12 @@ export default function TimelineScreen() {
   const [showAddCheckpointTimePicker, setShowAddCheckpointTimePicker] = useState(false);
   const [newCheckpointName, setNewCheckpointName] = useState("");
   const [newCheckpointTime, setNewCheckpointTime] = useState(new Date());
+  const [newCheckpointRepeat, setNewCheckpointRepeat] = useState<"daily" | "weekly">("daily");
+  const [newCheckpointRepeatDays, setNewCheckpointRepeatDays] = useState<string[]>([]);
   const [newTaskName, setNewTaskName] = useState("");
   const [newTaskPoints, setNewTaskPoints] = useState("0");
+  const [newTaskRepeat, setNewTaskRepeat] = useState<"daily" | "weekly">("daily");
+  const [newTaskRepeatDays, setNewTaskRepeatDays] = useState<string[]>([]);
   const [addTaskCheckpointTarget, setAddTaskCheckpointTarget] = useState<{
     id: string;
     name: string;
@@ -394,6 +411,32 @@ export default function TimelineScreen() {
 
   const colorScheme = useColorScheme();
   const isDark = colorScheme !== "light";
+
+  const toggleWeekday = (
+    value: string,
+    setter: React.Dispatch<React.SetStateAction<string[]>>
+  ) => {
+    setter((prev) => {
+      if (prev.includes(value)) return prev.filter((day) => day !== value);
+      return [...prev, value];
+    });
+  };
+
+  const refreshCheckpointsForDay = async (dayKey?: string) => {
+    const data = await loadCheckpoints(dayKey);
+    setCheckpoints(data);
+    setExpandedCheckpoints((prev) => {
+      if (prev.size === 0) {
+        return new Set(data.map((cp: any) => cp.id));
+      }
+
+      const next = new Set<string>();
+      data.forEach((cp: any) => {
+        if (prev.has(cp.id)) next.add(cp.id);
+      });
+      return next;
+    });
+  };
 
   useEffect(() => {
     (async () => {
@@ -410,7 +453,6 @@ export default function TimelineScreen() {
         setSelectedDayTimes(result.times);
 
         await seedIfEmpty(result.times, result.lastThirdTime);
-        const data = await loadCheckpoints();
 
         let cards: HijriMonthDayCard[] = [];
         if (result.location) {
@@ -446,11 +488,10 @@ export default function TimelineScreen() {
           cards.find((day) => day.isToday)?.gregorianKey ?? cards[0]?.gregorianKey ?? todayKey;
         const persistedDoneState = await loadCompletionStateByDay(initialSelectedKey);
 
-        setCheckpoints(data);
+        await refreshCheckpointsForDay(initialSelectedKey);
         setMonthDayCards(cards);
         setSelectedGregorianDayKey(initialSelectedKey);
         setDoneState(persistedDoneState);
-        setExpandedCheckpoints(new Set(data.map((cp: any) => cp.id)));
       } catch (e: any) {
         setErr(e?.message ?? String(e));
       } finally {
@@ -621,11 +662,13 @@ export default function TimelineScreen() {
 
   const handleSelectDay = (dayKey: string) => {
     setSelectedGregorianDayKey(dayKey);
+    void refreshCheckpointsForDay(dayKey);
   };
 
   const handleReturnToToday = () => {
     if (!todayGregorianDayKey) return;
     setSelectedGregorianDayKey(todayGregorianDayKey);
+    void refreshCheckpointsForDay(todayGregorianDayKey);
     const index = monthDayCards.findIndex((day) => day.gregorianKey === todayGregorianDayKey);
     if (index >= 0) {
       pendingDayScrollIndexRef.current = index;
@@ -646,6 +689,8 @@ export default function TimelineScreen() {
   const openAddCheckpointModal = () => {
     setNewCheckpointName("");
     setNewCheckpointTime(new Date());
+    setNewCheckpointRepeat("daily");
+    setNewCheckpointRepeatDays([]);
     setShowAddCheckpointTimePicker(false);
     setAddCheckpointModalVisible(true);
   };
@@ -654,6 +699,8 @@ export default function TimelineScreen() {
     setAddTaskCheckpointTarget({ id: cp.id, name: cp.name });
     setNewTaskName("");
     setNewTaskPoints("0");
+    setNewTaskRepeat("daily");
+    setNewTaskRepeatDays([]);
     setAddTaskModalVisible(true);
   };
 
@@ -668,20 +715,21 @@ export default function TimelineScreen() {
       Alert.alert("خطأ", "يرجى إدخال اسم المرحلة.");
       return;
     }
+    if (newCheckpointRepeat === "weekly" && newCheckpointRepeatDays.length === 0) {
+      Alert.alert("خطأ", "يرجى اختيار يوم واحد على الأقل للتكرار الأسبوعي.");
+      return;
+    }
 
     try {
       setSavingCrud(true);
-      const created = await createCheckpoint({
+      await createCheckpoint({
         name,
         time: toHHmm(newCheckpointTime),
+        repeat: newCheckpointRepeat,
+        repeatDays: newCheckpointRepeatDays,
       });
 
-      setCheckpoints((prev) => [...prev, created]);
-      setExpandedCheckpoints((prev) => {
-        const next = new Set(prev);
-        next.add(created.id);
-        return next;
-      });
+      await refreshCheckpointsForDay(selectedGregorianDayKey || todayGregorianDayKey);
       setAddCheckpointModalVisible(false);
     } catch (e) {
       console.error("Failed to create checkpoint:", e);
@@ -698,6 +746,10 @@ export default function TimelineScreen() {
       Alert.alert("خطأ", "يرجى إدخال اسم المهمة.");
       return;
     }
+    if (newTaskRepeat === "weekly" && newTaskRepeatDays.length === 0) {
+      Alert.alert("خطأ", "يرجى اختيار يوم واحد على الأقل للتكرار الأسبوعي.");
+      return;
+    }
 
     const parsedPoints = Number(newTaskPoints);
     const points = Number.isFinite(parsedPoints) ? Math.max(0, parsedPoints) : 0;
@@ -708,20 +760,15 @@ export default function TimelineScreen() {
         checkpointId: addTaskCheckpointTarget.id,
         name,
         points,
+        repeat: newTaskRepeat,
+        repeatDays: newTaskRepeatDays,
       });
       if (!created) {
         Alert.alert("خطأ", "تعذر إنشاء المهمة.");
         return;
       }
 
-      setCheckpoints((prev) =>
-        prev.map((cp: any) => (cp.id === created.checkpoint.id ? created.checkpoint : cp))
-      );
-      setExpandedCheckpoints((prev) => {
-        const next = new Set(prev);
-        next.add(created.checkpoint.id);
-        return next;
-      });
+      await refreshCheckpointsForDay(selectedGregorianDayKey || todayGregorianDayKey);
       setAddTaskModalVisible(false);
       setAddTaskCheckpointTarget(null);
     } catch (e) {
@@ -1483,6 +1530,40 @@ export default function TimelineScreen() {
               </Pressable>
             </View>
 
+            <View style={styles.modalField}>
+              <Text style={styles.modalLabel}>نوع التكرار</Text>
+              <View style={styles.repeatModeRow}>
+                {REPEAT_MODE_OPTIONS.map((option) => (
+                  <Pressable
+                    key={option.value}
+                    style={[
+                      styles.repeatModeButton,
+                      newCheckpointRepeat === option.value && styles.repeatModeButtonActive,
+                    ]}
+                    onPress={() => setNewCheckpointRepeat(option.value)}
+                  >
+                    <Text style={styles.repeatModeButtonText}>{option.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              {newCheckpointRepeat === "weekly" && (
+                <View style={styles.repeatDaysRow}>
+                  {WEEKDAY_OPTIONS.map((day) => (
+                    <Pressable
+                      key={`cp-${day.value}`}
+                      style={[
+                        styles.repeatDayChip,
+                        newCheckpointRepeatDays.includes(day.value) && styles.repeatDayChipActive,
+                      ]}
+                      onPress={() => toggleWeekday(day.value, setNewCheckpointRepeatDays)}
+                    >
+                      <Text style={styles.repeatDayChipText}>{day.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </View>
+
             {showAddCheckpointTimePicker && (
               <DateTimePicker
                 value={newCheckpointTime}
@@ -1547,6 +1628,40 @@ export default function TimelineScreen() {
                 placeholderTextColor="#94A3B8"
                 textAlign="right"
               />
+            </View>
+
+            <View style={styles.modalField}>
+              <Text style={styles.modalLabel}>نوع التكرار</Text>
+              <View style={styles.repeatModeRow}>
+                {REPEAT_MODE_OPTIONS.map((option) => (
+                  <Pressable
+                    key={`task-repeat-${option.value}`}
+                    style={[
+                      styles.repeatModeButton,
+                      newTaskRepeat === option.value && styles.repeatModeButtonActive,
+                    ]}
+                    onPress={() => setNewTaskRepeat(option.value)}
+                  >
+                    <Text style={styles.repeatModeButtonText}>{option.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              {newTaskRepeat === "weekly" && (
+                <View style={styles.repeatDaysRow}>
+                  {WEEKDAY_OPTIONS.map((day) => (
+                    <Pressable
+                      key={`task-${day.value}`}
+                      style={[
+                        styles.repeatDayChip,
+                        newTaskRepeatDays.includes(day.value) && styles.repeatDayChipActive,
+                      ]}
+                      onPress={() => toggleWeekday(day.value, setNewTaskRepeatDays)}
+                    >
+                      <Text style={styles.repeatDayChipText}>{day.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
             </View>
 
             <View style={styles.modalHintRow}>
@@ -2067,6 +2182,50 @@ const styles = StyleSheet.create({
   },
   modalField: {
     gap: 8,
+  },
+  repeatModeRow: {
+    flexDirection: "row-reverse",
+    gap: 8,
+  },
+  repeatModeButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+    borderRadius: 10,
+    paddingVertical: 8,
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  repeatModeButtonActive: {
+    borderColor: "#818CF8",
+    backgroundColor: "rgba(99,102,241,0.25)",
+  },
+  repeatModeButtonText: {
+    color: "#E5E7EB",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  repeatDaysRow: {
+    flexDirection: "row-reverse",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  repeatDayChip: {
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  repeatDayChipActive: {
+    borderColor: "#818CF8",
+    backgroundColor: "rgba(99,102,241,0.25)",
+  },
+  repeatDayChipText: {
+    color: "#E5E7EB",
+    fontSize: 12,
+    fontWeight: "600",
   },
   modalLabel: {
     color: "#E5E7EB",

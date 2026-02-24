@@ -10,8 +10,42 @@ function normalizeArabicDayName(day: string): string {
     .replaceAll("ى", "ي");
 }
 
-function getTodayDayNames() {
-  const date = new Date();
+function resolveTargetDate(targetDate?: Date | string) {
+  if (targetDate instanceof Date && !Number.isNaN(targetDate.getTime())) {
+    return targetDate;
+  }
+
+  if (typeof targetDate === "string") {
+    const trimmed = targetDate.trim();
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+    if (match) {
+      const year = Number(match[1]);
+      const month = Number(match[2]);
+      const day = Number(match[3]);
+      const parsed = new Date(year, month - 1, day, 12, 0, 0, 0);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+
+    const fallbackParsed = new Date(trimmed);
+    if (!Number.isNaN(fallbackParsed.getTime())) {
+      return fallbackParsed;
+    }
+  }
+
+  return new Date();
+}
+
+function toDateISO(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getDayNamesForDate(targetDate?: Date | string) {
+  const date = resolveTargetDate(targetDate);
   const weekdayAr = new Intl.DateTimeFormat("ar", { weekday: "long" }).format(date);
   const weekdayEn = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(date);
 
@@ -29,7 +63,7 @@ function getTodayDayNames() {
     arabic: normalizeArabicDayName(weekdayAr),
     english: weekdayEn,
     mappedArabic: normalizeArabicDayName(enToAr[weekdayEn] ?? ""),
-    dateISO: date.toISOString().slice(0, 10),
+    dateISO: toDateISO(date),
   };
 }
 
@@ -51,9 +85,9 @@ function parseRepeatDays(value: unknown): string[] | null {
   }
 }
 
-function shouldRenderByRepeat(repeat: unknown, repeatDays: unknown): boolean {
+function shouldRenderByRepeat(repeat: unknown, repeatDays: unknown, targetDate?: Date | string): boolean {
   const mode = String(repeat ?? "daily").toLowerCase();
-  const today = getTodayDayNames();
+  const dayInfo = getDayNamesForDate(targetDate);
 
   if (mode === "daily") return true;
 
@@ -63,21 +97,21 @@ function shouldRenderByRepeat(repeat: unknown, repeatDays: unknown): boolean {
 
     const normalized = days.map((d) => normalizeArabicDayName(d));
     return (
-      normalized.includes(today.arabic) ||
-      normalized.includes(today.mappedArabic) ||
-      days.includes(today.english)
+      normalized.includes(dayInfo.arabic) ||
+      normalized.includes(dayInfo.mappedArabic) ||
+      days.includes(dayInfo.english)
     );
   }
 
   if (mode === "certain_day" || mode === "certain day") {
     const value = Array.isArray(repeatDays) ? repeatDays[0] : String(repeatDays ?? "").trim();
-    return value === today.dateISO;
+    return value === dayInfo.dateISO;
   }
 
   return true;
 }
 
-export async function loadCheckpoints() {
+export async function loadCheckpoints(targetDate?: Date | string) {
   const db = await getDb();
   const rows = await db.getAllAsync<{ id: string; doc: string }>(
     "SELECT id, doc FROM checkpoints;"
@@ -85,11 +119,11 @@ export async function loadCheckpoints() {
 
   const checkpoints = rows
     .map((r) => JSON.parse(r.doc))
-    .filter((cp) => shouldRenderByRepeat(cp.repeat, cp.repeat_days))
+    .filter((cp) => shouldRenderByRepeat(cp.repeat, cp.repeat_days, targetDate))
     .map((cp) => ({
       ...cp,
       tasks: (cp.tasks ?? []).filter((task: any) =>
-        shouldRenderByRepeat(task.repeat, task.repeat_days)
+        shouldRenderByRepeat(task.repeat, task.repeat_days, targetDate)
       ),
     }))
     .sort((a, b) => {
@@ -185,6 +219,8 @@ export async function updateCheckpointNotificationSettings(params: {
 export async function createCheckpoint(params: {
   name: string;
   time: string;
+  repeat: "daily" | "weekly";
+  repeatDays: string[];
 }) {
   const db = await getDb();
   const rows = await db.getAllAsync<{ id: string; doc: string }>(
@@ -200,6 +236,17 @@ export async function createCheckpoint(params: {
   const id = `cp_user_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const normalizedName = String(params.name ?? "").trim();
   const normalizedTime = String(params.time ?? "").trim() || "08:00";
+  const normalizedRepeat = params.repeat === "weekly" ? "weekly" : "daily";
+  const normalizedRepeatDays =
+    normalizedRepeat === "weekly"
+      ? Array.from(
+          new Set(
+            (params.repeatDays ?? [])
+              .map((value) => String(value).trim())
+              .filter(Boolean)
+          )
+        )
+      : [];
 
   const checkpoint = {
     id,
@@ -210,8 +257,8 @@ export async function createCheckpoint(params: {
     locked: false,
     expanded: true,
     default: false,
-    repeat: "daily",
-    repeat_days: "",
+    repeat: normalizedRepeat,
+    repeat_days: normalizedRepeat === "weekly" ? normalizedRepeatDays : "",
     notifications: false,
     enable_disable_notifications: true,
     notification_time: normalizedTime,
@@ -243,6 +290,8 @@ export async function createTaskInCheckpoint(params: {
   checkpointId: string;
   name: string;
   points?: number;
+  repeat: "daily" | "weekly";
+  repeatDays: string[];
 }) {
   const db = await getDb();
   const row = await db.getFirstAsync<{ id: string; doc: string }>(
@@ -256,6 +305,17 @@ export async function createTaskInCheckpoint(params: {
   const id = `t_user_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const normalizedName = String(params.name ?? "").trim();
   const normalizedPoints = Number.isFinite(Number(params.points)) ? Number(params.points) : 0;
+  const normalizedRepeat = params.repeat === "weekly" ? "weekly" : "daily";
+  const normalizedRepeatDays =
+    normalizedRepeat === "weekly"
+      ? Array.from(
+          new Set(
+            (params.repeatDays ?? [])
+              .map((value) => String(value).trim())
+              .filter(Boolean)
+          )
+        )
+      : [];
 
   const task = {
     id,
@@ -265,8 +325,8 @@ export async function createTaskInCheckpoint(params: {
     points: Math.max(0, normalizedPoints),
     locked: false,
     default: false,
-    repeat: "daily",
-    repeat_days: "",
+    repeat: normalizedRepeat,
+    repeat_days: normalizedRepeat === "weekly" ? normalizedRepeatDays : "",
     notifications: false,
     enable_disable_notifications: true,
     notification_time: String(checkpoint.time || "08:00"),
