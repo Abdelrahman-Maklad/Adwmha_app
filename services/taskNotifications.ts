@@ -78,7 +78,7 @@ function mapDayToWeekday(day: string): number | null {
 function normalizeSound(sound?: string): NotificationSound {
   const value = String(sound ?? "").trim();
   if (!value || value.toLowerCase() === "default") return "default";
-  if (!value.includes(".")) return `${value}.mp3`;
+  if (!value.includes(".")) return `${value}.wav`;
   return value;
 }
 

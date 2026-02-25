@@ -6,7 +6,7 @@ let _db: SQLite.SQLiteDatabase | null = null;
 export async function getDb() {
   if (_db) return _db;
 
-  _db = await SQLite.openDatabaseAsync("adomha.db");
+  _db = await SQLite.openDatabaseAsync("adomha_v1.db");
 
   await _db.execAsync(`
     CREATE TABLE IF NOT EXISTS checkpoints (

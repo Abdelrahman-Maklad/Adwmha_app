@@ -339,9 +339,9 @@ function calculateLastThirdFromTimes(isha: string, fajr: string): string {
   return formatMinutes(ishaMinutes + (2 * nightDuration) / 3);
 }
 
-const SOUND_OPTIONS = ["default", "adhan.mp3"];
+const SOUND_OPTIONS = ["default", "adhan.wav"];
 const PREVIEWABLE_SOUND_ASSETS: Record<string, any> = {
-  "adhan.mp3": require("./assets/sounds/adhan.mp3"),
+  "adhan.wav": require("./assets/sounds/adhan.wav"),
 };
 const FONTS = {
   regular: "Cairo-Regular",
@@ -903,7 +903,7 @@ export default function TimelineScreen() {
       const effectiveTime = await resolveTodayPrayerTimeForCheckpoint(cp);
       const effectiveTitle = String(cp.notification_title ?? "").trim() || `تذكير: ${cp.name}`;
       const effectiveText = String(cp.notification_text ?? "").trim() || `حان وقت ${cp.name}`;
-      const effectiveSound = "adhan.mp3";
+      const effectiveSound = "adhan.wav";
 
       const updated = await updateCheckpointNotificationSettings({
         checkpointId: cp.id,
@@ -1056,7 +1056,7 @@ export default function TimelineScreen() {
           effectiveTime = currentCheckpoint
             ? await resolveTodayPrayerTimeForCheckpoint(currentCheckpoint)
             : notificationTimeHHmm;
-          effectiveSound = "adhan.mp3";
+          effectiveSound = "adhan.wav";
           effectiveTitle =
             String(currentCheckpoint?.notification_title ?? "").trim() ||
             `تذكير: ${selectedNotificationTarget.itemName}`;
@@ -1152,16 +1152,16 @@ export default function TimelineScreen() {
       await stopSoundPreview();
 
       const instance = createAudioPlayer(PREVIEWABLE_SOUND_ASSETS[sound]);
-      instance.play();
-      soundPreviewInstance.current = instance;
-      setPreviewingSound(sound);
-
-      instance.setOnPlaybackStatusUpdate((status) => {
-        if (!status.isLoaded) return;
-        if (status.didJustFinish) {
+      instance.addListener("playbackStatusUpdate", (status: any) => {
+        if (!status?.isLoaded) return;
+        if (status?.didJustFinish) {
           void stopSoundPreview();
         }
       });
+
+      instance.play();
+      soundPreviewInstance.current = instance;
+      setPreviewingSound(sound);
     } catch (e) {
       console.error("Sound preview failed:", e);
       await stopSoundPreview();
@@ -1352,7 +1352,7 @@ export default function TimelineScreen() {
                     {tasks.map((t: any) => {
                       const TaskIcon = ICON_MAP[String(t.icon || "").toLowerCase()];
                       const isMain = t.type === "main_task";
-                      const taskColor = isMain ? color : "#9CA3AF";
+                      const taskColor = isMain ? color : "#E5E7EB";
                       const taskDone = Boolean(doneState[t.id]);
                       const hasChecklist = (t.checklist ?? []).length > 0;
                       const isTaskExpanded = expandedTasks.has(`${cp.id}_${t.id}`);
@@ -1815,7 +1815,7 @@ export default function TimelineScreen() {
                     style={styles.modalInput}
                     value={notificationSound}
                     onChangeText={setNotificationSound}
-                    placeholder="default أو adhan.mp3"
+                    placeholder="default أو adhan.wav"
                     placeholderTextColor="#94A3B8"
                     textAlign="right"
                   />
