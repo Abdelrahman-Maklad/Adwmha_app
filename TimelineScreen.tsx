@@ -1188,6 +1188,7 @@ export default function TimelineScreen() {
     <ImageBackground
       source={require("./assets/islamic ornament background.png")}
       style={styles.screen}
+      imageStyle={{ transform: [{ scale: 1.5}, {translateX: -20 }] }}
       resizeMode="cover"
     >
       <View style={styles.backgroundOverlay} />
