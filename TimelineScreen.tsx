@@ -16,7 +16,7 @@ import {
   TextInput,
 } from "react-native";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
-import { Audio } from "expo-av";
+import { createAudioPlayer } from "expo-audio";
 import { useFonts } from "expo-font";
 
 import { seedIfEmpty } from "./db/seed";
@@ -339,9 +339,9 @@ function calculateLastThirdFromTimes(isha: string, fajr: string): string {
   return formatMinutes(ishaMinutes + (2 * nightDuration) / 3);
 }
 
-const SOUND_OPTIONS = ["default", "adhan"];
+const SOUND_OPTIONS = ["default", "adhan.mp3"];
 const PREVIEWABLE_SOUND_ASSETS: Record<string, any> = {
-  "adhan": require("./assets/sounds/adhan.mp3"),
+  "adhan.mp3": require("./assets/sounds/adhan.mp3"),
 };
 const FONTS = {
   regular: "Cairo-Regular",
@@ -421,7 +421,7 @@ export default function TimelineScreen() {
     name: string;
   } | null>(null);
   const [savingCrud, setSavingCrud] = useState(false);
-  const soundPreviewInstance = useRef<Audio.Sound | null>(null);
+  const soundPreviewInstance = useRef<any>(null);
   const dayCardsListRef = useRef<FlatList<HijriMonthDayCard> | null>(null);
   const pendingDayScrollIndexRef = useRef<number | null>(null);
 
@@ -547,8 +547,11 @@ export default function TimelineScreen() {
     return () => {
       const current = soundPreviewInstance.current;
       if (!current) return;
-      void current.stopAsync().catch(() => {});
-      void current.unloadAsync().catch(() => {});
+      try {
+        current.pause();
+        void current.seekTo(0);
+        current.remove();
+      } catch {}
       soundPreviewInstance.current = null;
     };
   }, []);
@@ -1121,10 +1124,13 @@ export default function TimelineScreen() {
     }
 
     try {
-      await current.stopAsync();
+      current.pause();
     } catch {}
     try {
-      await current.unloadAsync();
+      await current.seekTo(0);
+    } catch {}
+    try {
+      current.remove();
     } catch {}
 
     soundPreviewInstance.current = null;
@@ -1145,11 +1151,8 @@ export default function TimelineScreen() {
     try {
       await stopSoundPreview();
 
-      const { sound: instance } = await Audio.Sound.createAsync(
-        PREVIEWABLE_SOUND_ASSETS[sound],
-        { shouldPlay: true }
-      );
-
+      const instance = createAudioPlayer(PREVIEWABLE_SOUND_ASSETS[sound]);
+      instance.play();
       soundPreviewInstance.current = instance;
       setPreviewingSound(sound);
 
@@ -1812,7 +1815,7 @@ export default function TimelineScreen() {
                     style={styles.modalInput}
                     value={notificationSound}
                     onChangeText={setNotificationSound}
-                    placeholder="default أو adhan.wav"
+                    placeholder="default أو adhan.mp3"
                     placeholderTextColor="#94A3B8"
                     textAlign="right"
                   />

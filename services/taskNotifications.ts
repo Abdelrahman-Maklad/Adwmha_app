@@ -13,7 +13,7 @@ Notifications.setNotificationHandler({
 type RepeatMode = "daily" | "weekly" | "certain_day" | "certain day";
 type NotificationSound = "default" | string;
 type EntityType = "task" | "checkpoint";
-const CHANNEL_VERSION = "v2";
+const CHANNEL_VERSION = "v3";
 
 const DAY_TO_WEEKDAY: Record<string, number> = {
   sunday: 1,
@@ -77,7 +77,9 @@ function mapDayToWeekday(day: string): number | null {
 
 function normalizeSound(sound?: string): NotificationSound {
   const value = String(sound ?? "").trim();
-  return value ? value : "default";
+  if (!value || value.toLowerCase() === "default") return "default";
+  if (!value.includes(".")) return `${value}.mp3`;
+  return value;
 }
 
 function normalizeTitle(title: string | undefined, itemName: string): string {

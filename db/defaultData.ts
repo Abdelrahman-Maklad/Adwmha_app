@@ -49,7 +49,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           name: "سنة الفجر (ركعتان)",
           done: false,
           points: 5,
-          locked: false,
+          locked: true,
 
 
           default: true,
@@ -74,8 +74,8 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           type: "main_task",
           name: "صلاة الفجر",
           done: false,
-          points: 4,
-          locked: false,
+          points: 12,
+          locked: true,
 
 
           default: true,
@@ -124,6 +124,32 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           redirect: "",
 
           checklist: []
+        },
+        {
+          id: "t_fajr_sabah",
+          type: "regular_task",
+          name: "أذكار الصباح",
+          done: false,
+          points: 5,
+          locked: true,
+
+
+          default: true,
+          repeat: "daily",
+          repeat_days: "",
+
+          notifications: false,
+          enable_disable_notifications: true,
+          notification_time: "",
+          notification_title: "",
+          notification_sound: "",
+          notification_text: "",
+
+          icon: "sun",
+          image: "",
+          redirect: "",
+
+          checklist: []
         }
       ]
     },
@@ -135,7 +161,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
       time: times.sunrise,
       order: 1,
 
-      locked: false,
+      locked: true,
       expanded: true,
 
       default: true,
@@ -155,47 +181,21 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
       redirect: "",
 
       tasks: [
-        {
-          id: "t_sabah",
-          type: "regular_task",
-          name: "أذكار الصباح",
-          done: false,
-          points: 5,
-          locked: false,
-
-
-          default: true,
-          repeat: "daily",
-          repeat_days: "",
-
-          notifications: false,
-          enable_disable_notifications: false,
-          notification_time: "",
-          notification_title: "",
-          notification_sound: "",
-          notification_text: "",
-
-          icon: "sun",
-          image: "",
-          redirect: "",
-
-          checklist: []
-        },
+        
         {
           id: "t_duha",
           type: "secondary_task",
           name: "صلاة الضحى",
           done: false,
           points: 5,
-          locked: false,
-
+          locked: true,
 
           default: true,
           repeat: "daily",
           repeat_days: "",
 
           notifications: false,
-          enable_disable_notifications: false,
+          enable_disable_notifications: true,
           notification_time: "",
           notification_title: "",
           notification_sound: "",
@@ -243,7 +243,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           name: "سنة قبل الظهر (٤ ركعات)",
           done: false,
           points: 5,
-          locked: false,
+          locked: true,
 
 
           default: true,
@@ -268,12 +268,12 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           type: "main_task",
           name: "صلاة الظهر",
           done: false,
-          points: 4,
+          points: 12,
 
           default: true,
           repeat: "weekly",
           repeat_days: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Saturday"],
-          locked: false,
+          locked: true,
 
 
           notifications: false,
@@ -298,12 +298,12 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           type: "main_task",
           name: "صلاة الجمعة",
           done: false,
-          points: 4,
+          points: 12,
 
           default: true,
           repeat: "weekly",
           repeat_days: ["Friday"],
-          locked: false,
+          locked: true,
 
 
           notifications: false,
@@ -329,7 +329,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           name: "سنة بعد الظهر (ركعتان)",
           done: false,
           points: 5,
-          locked: false,
+          locked: true,
 
 
           default: true,
@@ -384,8 +384,8 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           type: "main_task",
           name: "صلاة العصر",
           done: false,
-          points: 4,
-          locked: false,
+          points: 12,
+          locked: true,
 
 
           default: true,
@@ -415,7 +415,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           name: "أذكار المساء",
           done: false,
           points: 5,
-          locked: false,
+          locked: true,
 
 
           default: true,
@@ -470,8 +470,8 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           type: "main_task",
           name: "صلاة المغرب",
           done: false,
-          points: 4,
-          locked: false,
+          points: 12,
+          locked: true,
 
 
           default: true,
@@ -501,7 +501,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           name: "سنة بعد المغرب (ركعتان)",
           done: false,
           points: 5,
-          locked: false,
+          locked: true,
 
 
           default: true,
@@ -556,8 +556,8 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           type: "main_task",
           name: "صلاة العشاء",
           done: false,
-          points: 4,
-          locked: false,
+          points: 12,
+          locked: true,
 
 
           default: true,
@@ -587,7 +587,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           name: "سنة بعد العشاء (ركعتان)",
           done: false,
           points: 5,
-          locked: false,
+          locked: true,
 
 
           default: true,
@@ -596,6 +596,31 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
 
           notifications: false,
           enable_disable_notifications: false,
+          notification_time: "",
+          notification_title: "",
+          notification_sound: "",
+          notification_text: "",
+
+          icon: "book",
+          image: "",
+          redirect: "",
+
+          checklist: []
+        },{
+          id: "t_qiyam_isha",
+          type: "secondary_task",
+          name: "قيام الليل",
+          done: false,
+          points: 5,
+          locked: true,
+
+
+          default: true,
+          repeat: "daily",
+          repeat_days: "",
+
+          notifications: false,
+          enable_disable_notifications: true,
           notification_time: "",
           notification_title: "",
           notification_sound: "",
@@ -617,7 +642,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
       time: lastThirdTime,
       order: 6,
 
-      locked: false,
+      locked: true,
       expanded: true,
 
       default: true,
@@ -640,10 +665,10 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
         {
           id: "t_tahajjud",
           type: "secondary_task",
-          name: "التهجد",
+          name: "قيام الليل",
           done: false,
           points: 5,
-          locked: false,
+          locked: true,
 
 
           default: true,
@@ -651,7 +676,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           repeat_days: "",
 
           notifications: false,
-          enable_disable_notifications: false,
+          enable_disable_notifications: true,
           notification_time: "",
           notification_title: "",
           notification_sound: "",
@@ -677,7 +702,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           repeat_days: "",
 
           notifications: false,
-          enable_disable_notifications: false,
+          enable_disable_notifications: true,
           notification_time: "",
           notification_title: "",
           notification_sound: "",
@@ -703,7 +728,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           repeat_days: "",
 
           notifications: false,
-          enable_disable_notifications: false,
+          enable_disable_notifications: true,
           notification_time: "",
           notification_title: "",
           notification_sound: "",
