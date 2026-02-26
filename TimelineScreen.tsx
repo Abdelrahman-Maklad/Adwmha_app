@@ -34,9 +34,12 @@ import {
   initializePrayerTimes,
   DateInfo,
   fetchHijriMonthCalendar,
+  getCachedHijriMonthCalendar,
+  getCachedHijriMonthCalendarWithoutLocation,
   HijriMonthDayCard,
   PrayerTimes,
   fetchPrayerTimesForDate,
+  getPrayerTimesWithoutLocation,
 } from "./services/prayerTimes";
 import { formatHijriDate, formatGregorianDate, toArabicDigits } from "./utils/dateFormat";
 import {
@@ -239,28 +242,20 @@ function CalendarHeader({
 }
 
 function formatTimeLabel(hhmm: string) {
-  if (!hhmm || hhmm === "api") return toArabicDigits("? 5:00");
+  const normalized = extractHHmm(hhmm);
+  if (!normalized || normalized === "api") return toArabicDigits("? 5:00");
 
-  const [hhStr, mmStr] = hhmm.split(":");
+  const [hhStr, mmStr] = normalized.split(":");
   const hh = Number(hhStr);
   const mm = Number(mmStr);
-
-  const isPM = hh >= 12;
-  // const period = isPM ? "P" : "A";
-
-  let h12 = hh % 12;
-  if (h12 === 0) h12 = 12;
-
-  // const label = ` ${String(h12)}:${String(mm).padStart(2, "0")} ${period}`;
-  const label = ` ${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
-  
-  // return toArabicDigits(label);
-  return label;
+  return ` ${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 }
 
 function parseHHmmToDate(hhmm: string): Date {
   const now = new Date();
-  const [hhStr, mmStr] = String(hhmm || "").split(":");
+  const normalized = extractHHmm(hhmm);
+  if (!normalized) return now;
+  const [hhStr, mmStr] = normalized.split(":");
   const hour = Number(hhStr);
   const minute = Number(mmStr);
 
@@ -312,16 +307,32 @@ function normalizeDayWithoutLeadingZero(day: string): string {
 }
 
 function parseMinutes(hhmm: string): number {
-  const [h, m] = String(hhmm || "").split(":").map(Number);
+  const normalized = extractHHmm(hhmm);
+  if (!normalized) return 0;
+  const [h, m] = normalized.split(":").map(Number);
   if (!Number.isFinite(h) || !Number.isFinite(m)) return 0;
   return h * 60 + m;
 }
 
 function parseTimeForSort(hhmm: string): number | null {
-  const [h, m] = String(hhmm || "").split(":").map(Number);
+  const normalized = extractHHmm(hhmm);
+  if (!normalized) return null;
+  const [h, m] = normalized.split(":").map(Number);
   if (!Number.isInteger(h) || !Number.isInteger(m)) return null;
   if (h < 0 || h > 23 || m < 0 || m > 59) return null;
   return h * 60 + m;
+}
+
+function extractHHmm(value: string): string | null {
+  const raw = String(value || "").trim();
+  if (!raw || raw === "api") return null;
+  const match = raw.match(/(\d{1,2}):(\d{2})/);
+  if (!match) return null;
+  const hh = Number(match[1]);
+  const mm = Number(match[2]);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
+  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 }
 
 function formatMinutes(total: number): string {
@@ -371,7 +382,7 @@ export default function TimelineScreen() {
 
   const [checkpoints, setCheckpoints] = useState<any[]>([]);
   const [err, setErr] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [bootDelayDone, setBootDelayDone] = useState(false);
   const [dateInfo, setDateInfo] = useState<DateInfo | null>(null);
   const [monthDayCards, setMonthDayCards] = useState<HijriMonthDayCard[]>([]);
   const [selectedGregorianDayKey, setSelectedGregorianDayKey] = useState("");
@@ -455,20 +466,28 @@ export default function TimelineScreen() {
   };
 
   useEffect(() => {
+    const timer = setTimeout(() => setBootDelayDone(true), 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
     (async () => {
       try {
-        setLoading(true);
-
         const todayKey = gregorianDayKey(new Date());
+        if (!active) return;
         setTodayGregorianDayKey(todayKey);
 
         const result = await initializePrayerTimes();
+        if (!active) return;
         setDateInfo(result.date);
         setLocationLabel(result.locationLabel);
         setLocationCoords(result.location);
         setSelectedDayTimes(result.times);
 
         await seedIfEmpty(result.times, result.lastThirdTime);
+        if (!active) return;
 
         let cards: HijriMonthDayCard[] = [];
         if (result.location) {
@@ -477,6 +496,19 @@ export default function TimelineScreen() {
             result.location.latitude,
             result.location.longitude
           );
+          if (!active) return;
+
+          if (cards.length === 0) {
+            cards = await getCachedHijriMonthCalendar(
+              new Date(),
+              result.location.latitude,
+              result.location.longitude
+            );
+            if (!active) return;
+          }
+        } else {
+          cards = await getCachedHijriMonthCalendarWithoutLocation(new Date());
+          if (!active) return;
         }
 
         if (cards.length === 0) {
@@ -503,17 +535,24 @@ export default function TimelineScreen() {
         const initialSelectedKey =
           cards.find((day) => day.isToday)?.gregorianKey ?? cards[0]?.gregorianKey ?? todayKey;
         const persistedDoneState = await loadCompletionStateByDay(initialSelectedKey);
+        if (!active) return;
 
         await refreshCheckpointsForDay(initialSelectedKey);
+        if (!active) return;
         setMonthDayCards(cards);
         setSelectedGregorianDayKey(initialSelectedKey);
         setDoneState(persistedDoneState);
       } catch (e: any) {
+        if (!active) return;
         setErr(e?.message ?? String(e));
       } finally {
-        setLoading(false);
+        if (!active) return;
       }
     })();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -525,15 +564,18 @@ export default function TimelineScreen() {
   }, [selectedGregorianDayKey]);
 
   useEffect(() => {
-    if (!selectedGregorianDayKey || !locationCoords) return;
+    if (!selectedGregorianDayKey) return;
     let active = true;
 
     (async () => {
-      const times = await fetchPrayerTimesForDate(
-        locationCoords.latitude,
-        locationCoords.longitude,
-        selectedGregorianDayKey
-      );
+      const directTimes = locationCoords
+        ? await fetchPrayerTimesForDate(
+            locationCoords.latitude,
+            locationCoords.longitude,
+            selectedGregorianDayKey
+          )
+        : await getPrayerTimesWithoutLocation(selectedGregorianDayKey);
+      const times = directTimes ?? (await getPrayerTimesWithoutLocation(selectedGregorianDayKey));
       if (!active || !times) return;
       setSelectedDayTimes(times);
     })();
@@ -621,7 +663,23 @@ export default function TimelineScreen() {
 
   const resolveTodayPrayerTimeForCheckpoint = async (cp: any): Promise<string> => {
     const fallbackTime = String(cp?.notification_time || cp?.time || "08:00");
-    if (!locationCoords) return fallbackTime;
+    if (!locationCoords) {
+      const todayKey = gregorianDayKey(new Date());
+      const cached = await getPrayerTimesWithoutLocation(todayKey);
+      if (!cached) return fallbackTime;
+
+      const timeByCheckpointId: Record<string, string> = {
+        cp_fajr: cached.fajr,
+        cp_sunrise: cached.sunrise,
+        cp_dhuhr: cached.dhuhr,
+        cp_asr: cached.asr,
+        cp_maghrib: cached.maghrib,
+        cp_isha: cached.isha,
+        cp_lastthird: calculateLastThirdFromTimes(cached.isha, cached.fajr),
+      };
+
+      return timeByCheckpointId[String(cp?.id)] ?? fallbackTime;
+    }
 
     const todayKey = gregorianDayKey(new Date());
     const times = await fetchPrayerTimesForDate(
@@ -1180,7 +1238,7 @@ export default function TimelineScreen() {
     );
   }
 
-  if (loading || !fontsLoaded) {
+  if (!bootDelayDone || !fontsLoaded) {
     return <StartScreen />;
   }
 
