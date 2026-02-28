@@ -147,7 +147,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
 
           icon: "sun",
           image: "",
-          redirect: "",
+          redirect: "أذكار الصباح",
 
           checklist: []
         }
@@ -431,7 +431,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
 
           icon: "sun",
           image: "",
-          redirect: "",
+          redirect: "أذكار المساء",
 
           checklist: []
         }
