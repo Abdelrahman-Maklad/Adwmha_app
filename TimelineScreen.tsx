@@ -18,6 +18,8 @@ import {
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { createAudioPlayer } from "expo-audio";
 import { useFonts } from "expo-font";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { seedIfEmpty } from "./db/seed";
 import {
@@ -49,6 +51,8 @@ import {
   scheduleTaskNotifications,
 } from "./services/taskNotifications";
 import StartScreen from "./StartScreen";
+import { RootStackParamList } from "./navigation/types";
+import { mapRedirectLabelToSetId } from "./utils/redirectMapper";
 
 import {
   Moon,
@@ -73,6 +77,7 @@ import {
   Play,
   Square,
   Trash2,
+  ArrowUpRight,
 } from "lucide-react-native";
 
 const ICON_MAP: Record<string, any> = {
@@ -374,6 +379,7 @@ const WEEKDAY_OPTIONS = [
 ];
 
 export default function TimelineScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [fontsLoaded] = useFonts({
     [FONTS.regular]: require("./assets/fonts/Cairo-Regular.ttf"),
     [FONTS.semiBold]: require("./assets/fonts/Cairo-SemiBold.ttf"),
@@ -1415,6 +1421,7 @@ export default function TimelineScreen() {
                       const taskDone = Boolean(doneState[t.id]);
                       const hasChecklist = (t.checklist ?? []).length > 0;
                       const isTaskExpanded = expandedTasks.has(`${cp.id}_${t.id}`);
+                      const redirectSetId = mapRedirectLabelToSetId(String(t.redirect ?? ""));
 
                       return (
                         <View key={t.id} style={styles.taskWrapper}>
@@ -1445,6 +1452,18 @@ export default function TimelineScreen() {
                                   }}
                                 >
                                   <Trash2 size={15} color="#FCA5A5" />
+                                </Pressable>
+                              )}
+
+                              {redirectSetId && (
+                                <Pressable
+                                  style={[styles.circleActionButton, styles.circleActionRedirect]}
+                                  onPress={(event) => {
+                                    event.stopPropagation();
+                                    navigation.navigate("AdhkarDetails", { setId: redirectSetId });
+                                  }}
+                                >
+                                  <ArrowUpRight size={15} color="#BFDBFE" />
                                 </Pressable>
                               )}
                             </View>
@@ -2252,6 +2271,10 @@ const styles = StyleSheet.create({
   circleActionDanger: {
     borderColor: "rgba(252,165,165,0.35)",
     backgroundColor: "rgba(252,165,165,0.08)",
+  },
+  circleActionRedirect: {
+    borderColor: "rgba(191,219,254,0.35)",
+    backgroundColor: "rgba(59,130,246,0.12)",
   },
   taskMenuButton: {
     width: 26,

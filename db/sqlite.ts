@@ -9,11 +9,18 @@ export async function getDb() {
   if (_dbOpenPromise) return _dbOpenPromise;
 
   _dbOpenPromise = (async () => {
-    const db = await SQLite.openDatabaseAsync("adomha_v232.db");
+    const db = await SQLite.openDatabaseAsync("adomha_v52.db");
 
     await db.execAsync(`
     CREATE TABLE IF NOT EXISTS checkpoints (
       id TEXT PRIMARY KEY NOT NULL,
+      doc TEXT NOT NULL
+    );
+  `);
+
+    await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS adhkar_sets (
+      _id TEXT PRIMARY KEY NOT NULL,
       doc TEXT NOT NULL
     );
   `);

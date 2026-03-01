@@ -1,0 +1,180 @@
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  ImageBackground,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useFonts } from "expo-font";
+import { ensureAdhkarSeededAndGet } from "../db/adhkarRepository";
+import { AdhkarSetDoc } from "../db/adhkarTypes";
+import AdhkarCard from "../components/AdhkarCard";
+import { RootStackParamList } from "../navigation/types";
+
+type Props = NativeStackScreenProps<RootStackParamList, "AdhkarDetails">;
+
+export default function AdhkarDetailsScreen({ route, navigation }: Props) {
+  const [doc, setDoc] = useState<AdhkarSetDoc | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [counts, setCounts] = useState<Record<string, number>>({});
+
+  const [fontsLoaded] = useFonts({
+    "Cairo-Regular": require("../assets/fonts/Cairo-Regular.ttf"),
+    "Cairo-SemiBold": require("../assets/fonts/Cairo-SemiBold.ttf"),
+    "Cairo-Bold": require("../assets/fonts/Cairo-Bold.ttf"),
+  });
+
+  useEffect(() => {
+    navigation.setOptions({
+      title: doc?.title_ar ?? "تفاصيل الأذكار",
+    });
+  }, [doc?.title_ar, navigation]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const load = async () => {
+      setLoading(true);
+      setError("");
+
+      try {
+        const result = await ensureAdhkarSeededAndGet(route.params.setId);
+        if (!mounted) return;
+
+        if (!result) {
+          setDoc(null);
+          setError("لم يتم العثور على مجموعة الأذكار المطلوبة.");
+          return;
+        }
+
+        setDoc(result);
+        const nextCounts: Record<string, number> = {};
+        result.items.forEach((item) => {
+          nextCounts[item.id] = 0;
+        });
+        setCounts(nextCounts);
+      } catch {
+        if (mounted) {
+          setError("حدث خطأ أثناء تحميل البيانات.");
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      mounted = false;
+    };
+  }, [route.params.setId]);
+
+  const orderedItems = useMemo(() => doc?.items ?? [], [doc?.items]);
+
+  return (
+    <ImageBackground
+      source={require("../assets/islamic ornament background.png")}
+      style={styles.screen}
+      imageStyle={{ transform: [{ scale: 1.5 }, { translateX: -20 }] }}
+      resizeMode="cover"
+    >
+      <View style={styles.backgroundOverlay} />
+
+      {loading || !fontsLoaded ? (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color="#E5E7EB" />
+        </View>
+      ) : error ? (
+        <View style={styles.centered}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : (
+        <FlatList
+          style={styles.list}
+          data={orderedItems}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
+          renderItem={({ item }) => {
+            const repeat = Math.max(0, Number(item.repeat) || 0);
+            const currentCount = counts[item.id] ?? 0;
+            const isCompleted = repeat <= 0 || currentCount >= repeat;
+            const isQuran = item.content_type === "quran" && Boolean(item.quran);
+
+            return (
+            <AdhkarCard
+              item={item}
+              currentCount={currentCount}
+              onCardPress={() =>
+                setCounts((prev) => ({
+                  ...prev,
+                  [item.id]:
+                    Math.max(0, prev[item.id] ?? 0) >= repeat
+                      ? Math.max(0, prev[item.id] ?? 0)
+                      : Math.max(0, prev[item.id] ?? 0) + 1,
+                }))
+              }
+              isCompleted={isCompleted}
+              isDisabled={isCompleted}
+              onOpenQuran={
+                isQuran
+                  ? () => {
+                      if (!item.quran) return;
+                      navigation.navigate("QuranReference", {
+                        titleAr: item.text_ar,
+                        quran: {
+                          surah: item.quran.surah,
+                          mode: item.quran.mode,
+                          ayah: item.quran.ayah,
+                          from: item.quran.from,
+                          to: item.quran.to,
+                        },
+                      });
+                    }
+                  : undefined
+              }
+            />
+            );
+          }}
+        />
+      )}
+    </ImageBackground>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: "#0A0E1A",
+  },
+  backgroundOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(10,14,26,0.82)",
+  },
+  list: {
+    flex: 1,
+  },
+  listContent: {
+    paddingHorizontal: 14,
+    paddingVertical: 18,
+    paddingBottom: 26,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  errorText: {
+    textAlign: "center",
+    color: "#FCA5A5",
+    fontSize: 16,
+    fontFamily: "Cairo-SemiBold",
+    writingDirection: "rtl",
+  },
+});

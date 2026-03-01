@@ -1,7 +1,7 @@
 // App.tsx
 import React from "react";
-import TimelineScreen from "./TimelineScreen";
+import RootNavigator from "./navigation/RootNavigator";
 
 export default function App() {
-  return <TimelineScreen />;
+  return <RootNavigator />;
 }
