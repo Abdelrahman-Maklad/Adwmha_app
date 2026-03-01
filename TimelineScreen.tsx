@@ -1419,6 +1419,7 @@ export default function TimelineScreen() {
                       const isMain = t.type === "main_task";
                       const taskColor = isMain ? color : "#E5E7EB";
                       const taskDone = Boolean(doneState[t.id]);
+                      const taskPoints = Number(t.points ?? 0);
                       const hasChecklist = (t.checklist ?? []).length > 0;
                       const isTaskExpanded = expandedTasks.has(`${cp.id}_${t.id}`);
                       const redirectSetId = mapRedirectLabelToSetId(String(t.redirect ?? ""));
@@ -1518,6 +1519,17 @@ export default function TimelineScreen() {
                                   {t.name}
                                 </Text>
                               </View>
+
+                              {taskPoints > 0 && (
+                                <View
+                                  style={[
+                                    styles.pointsBadge,
+                                    { backgroundColor: withAlpha(color, 0.2) },
+                                  ]}
+                                >
+                                  <Text style={[styles.pointsText, { color }]}>+{taskPoints}</Text>
+                                </View>
+                              )}
 
                               {hasChecklist && (
                                 <AnimatedChevron expanded={isTaskExpanded} color={taskColor} />
@@ -2244,11 +2256,13 @@ const styles = StyleSheet.create({
   },
   taskContentContainer: {
     flex: 1,
+    display: "flex",
     flexDirection: "row-reverse",
     alignItems: "center",
     gap: 8,
   },
   taskText: {
+    flex: 1,
     fontSize: 14,
     fontWeight: "500",
     fontFamily: FONTS.semiBold,
