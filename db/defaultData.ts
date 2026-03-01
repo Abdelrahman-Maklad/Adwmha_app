@@ -74,7 +74,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           type: "main_task",
           name: "صلاة الفجر",
           done: false,
-          points: 12,
+          points: 20,
           locked: true,
 
 
@@ -94,9 +94,9 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           redirect: "",
 
           checklist: [
-            { id: "cl_fajr_jama3a", name: "جماعة", done: false, points: 3, icon: "users", image: "", redirect: "" },
-            { id: "cl_fajr_waqt", name: "في الوقت", done: false, points: 3, icon: "clock", image: "", redirect: "" },
-            { id: "cl_fajr_athkar", name: "أذكار الصلاة", done: false, points: 2, icon: "heart", image: "", redirect: "" }
+            { id: "cl_fajr_jama8a", name: "جماعة", done: false, points: 8, icon: "users", image: "", redirect: "" },
+            { id: "cl_fajr_waqt", name: "في الوقت", done: false, points: 8, icon: "clock", image: "", redirect: "" },
+            { id: "cl_fajr_athkar", name: "أذكار الصلاة", done: false, points: 4, icon: "heart", image: "", redirect: "" }
           ]
         },
         {
@@ -147,7 +147,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
 
           icon: "book",
           image: "",
-          redirect: "سورة الكهف",
+          redirect: "",
 
           checklist: []
         },
@@ -294,7 +294,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           type: "main_task",
           name: "صلاة الظهر",
           done: false,
-          points: 12,
+          points: 20,
 
           default: true,
           repeat: "weekly",
@@ -314,9 +314,9 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           redirect: "",
 
           checklist: [
-            { id: "cl_dhuhr_jama3a", name: "جماعة", done: false, points: 3, icon: "users", image: "", redirect: "" },
-            { id: "cl_dhuhr_waqt", name: "في الوقت", done: false, points: 3, icon: "clock", image: "", redirect: "" },
-            { id: "cl_dhuhr_athkar", name: "أذكار الصلاة", done: false, points: 2, icon: "heart", image: "", redirect: "" }
+            { id: "cl_dhuhr_jama8a", name: "جماعة", done: false, points: 8, icon: "users", image: "", redirect: "" },
+            { id: "cl_dhuhr_waqt", name: "في الوقت", done: false, points: 8, icon: "clock", image: "", redirect: "" },
+            { id: "cl_dhuhr_athkar", name: "أذكار الصلاة", done: false, points: 4, icon: "heart", image: "", redirect: "" }
           ]
         },
         {
@@ -324,7 +324,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           type: "main_task",
           name: "صلاة الجمعة",
           done: false,
-          points: 12,
+          points: 20,
 
           default: true,
           repeat: "weekly",
@@ -344,9 +344,9 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           redirect: "",
 
           checklist: [
-            { id: "cl_jumuah_jama3a", name: "جماعة", done: false, points: 3, icon: "users", image: "", redirect: "" },
-            { id: "cl_jumuah_waqt", name: "في الوقت", done: false, points: 3, icon: "clock", image: "", redirect: "" },
-            { id: "cl_jumuah_athkar", name: "أذكار الصلاة", done: false, points: 2, icon: "heart", image: "", redirect: "" }
+            { id: "cl_jumuah_jama8a", name: "جماعة", done: false, points: 8, icon: "users", image: "", redirect: "" },
+            { id: "cl_jumuah_waqt", name: "في الوقت", done: false, points: 8, icon: "clock", image: "", redirect: "" },
+            { id: "cl_jumuah_athkar", name: "أذكار الصلاة", done: false, points: 4, icon: "heart", image: "", redirect: "" }
           ]
         },
         {
@@ -383,7 +383,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
       type: "checkpoint",
       name: "العصر",
       time: times.asr,
-      order: 3,
+      order: 8,
 
       locked: true,
       expanded: true,
@@ -410,7 +410,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           type: "main_task",
           name: "صلاة العصر",
           done: false,
-          points: 12,
+          points: 20,
           locked: true,
 
 
@@ -430,9 +430,9 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           redirect: "",
 
           checklist: [
-            { id: "cl_asr_jama3a", name: "جماعة", done: false, points: 3, icon: "users", image: "", redirect: "" },
-            { id: "cl_asr_waqt", name: "في الوقت", done: false, points: 3, icon: "clock", image: "", redirect: "" },
-            { id: "cl_asr_athkar", name: "أذكار الصلاة", done: false, points: 2, icon: "heart", image: "", redirect: "" }
+            { id: "cl_asr_jama8a", name: "جماعة", done: false, points: 8, icon: "users", image: "", redirect: "" },
+            { id: "cl_asr_waqt", name: "في الوقت", done: false, points: 8, icon: "clock", image: "", redirect: "" },
+            { id: "cl_asr_athkar", name: "أذكار الصلاة", done: false, points: 4, icon: "heart", image: "", redirect: "" }
           ]
         },
         {
@@ -496,7 +496,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           type: "main_task",
           name: "صلاة المغرب",
           done: false,
-          points: 12,
+          points: 20,
           locked: true,
 
 
@@ -516,9 +516,9 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           redirect: "",
 
           checklist: [
-            { id: "cl_maghrib_jama3a", name: "جماعة", done: false, points: 3, icon: "users", image: "", redirect: "" },
-            { id: "cl_maghrib_waqt", name: "في الوقت", done: false, points: 3, icon: "clock", image: "", redirect: "" },
-            { id: "cl_maghrib_athkar", name: "أذكار الصلاة", done: false, points: 2, icon: "heart", image: "", redirect: "" }
+            { id: "cl_maghrib_jama8a", name: "جماعة", done: false, points: 8, icon: "users", image: "", redirect: "" },
+            { id: "cl_maghrib_waqt", name: "في الوقت", done: false, points: 8, icon: "clock", image: "", redirect: "" },
+            { id: "cl_maghrib_athkar", name: "أذكار الصلاة", done: false, points: 4, icon: "heart", image: "", redirect: "" }
           ]
         },
         {
@@ -582,7 +582,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           type: "main_task",
           name: "صلاة العشاء",
           done: false,
-          points: 12,
+          points: 20,
           locked: true,
 
 
@@ -602,9 +602,9 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           redirect: "",
 
           checklist: [
-            { id: "cl_isha_jama3a", name: "جماعة", done: false, points: 3, icon: "users", image: "", redirect: "" },
-            { id: "cl_isha_waqt", name: "في الوقت", done: false, points: 3, icon: "clock", image: "", redirect: "" },
-            { id: "cl_isha_athkar", name: "أذكار الصلاة", done: false, points: 2, icon: "heart", image: "", redirect: "" }
+            { id: "cl_isha_jama8a", name: "جماعة", done: false, points: 8, icon: "users", image: "", redirect: "" },
+            { id: "cl_isha_waqt", name: "في الوقت", done: false, points: 8, icon: "clock", image: "", redirect: "" },
+            { id: "cl_isha_athkar", name: "أذكار الصلاة", done: false, points: 4, icon: "heart", image: "", redirect: "" }
           ]
         },
         {

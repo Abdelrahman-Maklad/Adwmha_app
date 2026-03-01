@@ -1,6 +1,6 @@
 export type RootStackParamList = {
   Timeline: undefined;
-  AdhkarDetails: { setId: "adhkar_morning" | "adhkar_evening" };
+  AdhkarDetails: { setId: string };
   QuranReference: {
     titleAr: string;
     quran: {

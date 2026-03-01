@@ -50,14 +50,5 @@ export const ADHKAR_SEED_DOCS: AdhkarSetDoc[] = [
       { "id": "e_017", "key": "la_ilaha_illallah_wahdahu", "text_ar": "لا إله إلا الله وحده لا شريك له، له الملك وله الحمد وهو على كل شيء قدير.", "repeat": 100, "priority": 1 }
     ],
     "metadata": { "version": 1, "language": "ar", "createdAt": "2026-02-28T00:00:00.000Z", "updatedAt": "2026-02-28T00:00:00.000Z" }
-  },
-    {
-    "_id": "surah_el_kahf",
-    "type": "evening",
-    "title_ar": "سورة الكهف",
-    "items": [
-      { "id": "e_002", "key": "surah_el_kahf", "text_ar": "سورة الكهف", "repeat": 3, "priority": 1, "content_type": "quran", "quran": { "surah": 18, "mode": "full" } },
-    ],
-    "metadata": { "version": 1, "language": "ar", "createdAt": "2026-02-28T00:00:00.000Z", "updatedAt": "2026-02-28T00:00:00.000Z" }
   }
 ];

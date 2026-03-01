@@ -1,4 +1,4 @@
-export type AdhkarSetType = "morning" | "evening";
+export type AdhkarSetType = string;
 
 export type AdhkarPriority = 1 | 2 | 3;
 
