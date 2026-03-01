@@ -109,8 +109,8 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
 
 
           default: true,
-          repeat: "daily",
-          repeat_days: "",
+          repeat: "weekly",
+          repeat_days: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Saturday"],
 
           notifications: false,
           enable_disable_notifications: false,
@@ -122,6 +122,32 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           icon: "book",
           image: "",
           redirect: "",
+
+          checklist: []
+        },
+        {
+          id: "surah_al_kahf",
+          type: "regular_task",
+          name: "سورة الكهف",
+          done: false,
+          points: 5,
+          locked: false,
+
+
+          default: true,
+          repeat: "weekly",
+          repeat_days: ["Friday"],
+
+          notifications: false,
+          enable_disable_notifications: false,
+          notification_time: "",
+          notification_title: "",
+          notification_sound: "",
+          notification_text: "",
+
+          icon: "book",
+          image: "",
+          redirect: "سورة الكهف",
 
           checklist: []
         },

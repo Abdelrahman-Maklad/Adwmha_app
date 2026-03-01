@@ -38,6 +38,14 @@ function buildTaskNotificationCapabilityMap(defaultDocs: any[]) {
   return map;
 }
 
+function buildDefaultCheckpointMap(defaultDocs: any[]) {
+  const map = new Map<string, any>();
+  for (const cp of defaultDocs ?? []) {
+    map.set(String(cp.id), cp);
+  }
+  return map;
+}
+
 function applyLatestTimesToCheckpoint(cp: any, times: any, lastThirdTime: string): boolean {
   const timeByCheckpointId: Record<string, string> = {
     cp_fajr: times.fajr,
@@ -66,7 +74,11 @@ function applyLatestTimesToCheckpoint(cp: any, times: any, lastThirdTime: string
   return changed;
 }
 
-function migrateCheckpointDoc(cp: any, taskNotifCapabilityMap: Map<string, boolean>) {
+function migrateCheckpointDoc(
+  cp: any,
+  taskNotifCapabilityMap: Map<string, boolean>,
+  defaultCheckpoint: any | null
+) {
   let changed = false;
 
   if (cp.order === undefined) {
@@ -103,6 +115,17 @@ function migrateCheckpointDoc(cp: any, taskNotifCapabilityMap: Map<string, boole
       tEnableDisableNotifications !== task.enable_disable_notifications ||
       tNotificationTitle !== task.notification_title
     ) {
+      changed = true;
+    }
+  }
+
+  if (defaultCheckpoint?.tasks?.length) {
+    const existingIds = new Set((cp.tasks ?? []).map((task: any) => String(task.id)));
+    const missingDefaultTasks = defaultCheckpoint.tasks.filter(
+      (task: any) => !existingIds.has(String(task.id))
+    );
+    if (missingDefaultTasks.length > 0) {
+      cp.tasks = [...(cp.tasks ?? []), ...missingDefaultTasks];
       changed = true;
     }
   }
@@ -164,11 +187,17 @@ async function migrateExistingCheckpoints(defaultDocs: any[]) {
 
   if (rows.length === 0) return;
   const taskNotifCapabilityMap = buildTaskNotificationCapabilityMap(defaultDocs);
+  const defaultCheckpointMap = buildDefaultCheckpointMap(defaultDocs);
 
   await db.withTransactionAsync(async () => {
     for (const row of rows) {
       const parsed = JSON.parse(row.doc);
-      const { cp, changed } = migrateCheckpointDoc(parsed, taskNotifCapabilityMap);
+      const defaultCheckpoint = defaultCheckpointMap.get(String(parsed.id)) ?? null;
+      const { cp, changed } = migrateCheckpointDoc(
+        parsed,
+        taskNotifCapabilityMap,
+        defaultCheckpoint
+      );
       if (!changed) continue;
 
       await db.runAsync(

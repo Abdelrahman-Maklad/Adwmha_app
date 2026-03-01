@@ -75,7 +75,17 @@ export default function AdhkarDetailsScreen({ route, navigation }: Props) {
     };
   }, [route.params.setId]);
 
-  const orderedItems = useMemo(() => doc?.items ?? [], [doc?.items]);
+  const orderedItems = useMemo(() => {
+    const items = doc?.items ?? [];
+    return items
+      .map((item, index) => ({ item, index }))
+      .sort((a, b) => {
+        const priorityDiff = Number(a.item.priority ?? 0) - Number(b.item.priority ?? 0);
+        if (priorityDiff !== 0) return priorityDiff;
+        return a.index - b.index;
+      })
+      .map((entry) => entry.item);
+  }, [doc?.items]);
 
   return (
     <ImageBackground

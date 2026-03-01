@@ -52,7 +52,7 @@ import {
 } from "./services/taskNotifications";
 import StartScreen from "./StartScreen";
 import { RootStackParamList } from "./navigation/types";
-import { mapRedirectLabelToSetId } from "./utils/redirectMapper";
+import { mapRedirectLabel } from "./utils/redirectMapper";
 
 import {
   Moon,
@@ -1422,7 +1422,7 @@ export default function TimelineScreen() {
                       const taskPoints = Number(t.points ?? 0);
                       const hasChecklist = (t.checklist ?? []).length > 0;
                       const isTaskExpanded = expandedTasks.has(`${cp.id}_${t.id}`);
-                      const redirectSetId = mapRedirectLabelToSetId(String(t.redirect ?? ""));
+                      const redirectTarget = mapRedirectLabel(String(t.redirect ?? ""));
 
                       return (
                         <View key={t.id} style={styles.taskWrapper}>
@@ -1456,12 +1456,21 @@ export default function TimelineScreen() {
                                 </Pressable>
                               )}
 
-                              {redirectSetId && (
+                              {redirectTarget && (
                                 <Pressable
                                   style={[styles.circleActionButton, styles.circleActionRedirect]}
                                   onPress={(event) => {
                                     event.stopPropagation();
-                                    navigation.navigate("AdhkarDetails", { setId: redirectSetId });
+                                    if (redirectTarget.kind === "adhkar") {
+                                      navigation.navigate("AdhkarDetails", {
+                                        setId: redirectTarget.setId,
+                                      });
+                                      return;
+                                    }
+                                    navigation.navigate("QuranReference", {
+                                      titleAr: redirectTarget.titleAr,
+                                      quran: redirectTarget.quran,
+                                    });
                                   }}
                                 >
                                   <ArrowUpRight size={15} color="#BFDBFE" />
