@@ -16,7 +16,6 @@ import {
   TextInput,
 } from "react-native";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
-import { createAudioPlayer } from "expo-audio";
 import { useFonts } from "expo-font";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -75,8 +74,6 @@ import {
   Bell,
   BellOff,
   Plus,
-  Play,
-  Square,
   Trash2,
   ArrowUpRight,
 } from "lucide-react-native";
@@ -356,10 +353,17 @@ function calculateLastThirdFromTimes(isha: string, fajr: string): string {
   return formatMinutes(ishaMinutes + (2 * nightDuration) / 3);
 }
 
-const SOUND_OPTIONS = ["default", "adhan.wav"];
-const PREVIEWABLE_SOUND_ASSETS: Record<string, any> = {
-  "adhan.wav": require("./assets/sounds/adhan.wav"),
-};
+const PRAYER_CHECKPOINT_IDS = new Set(["cp_fajr", "cp_dhuhr", "cp_asr", "cp_maghrib", "cp_isha"]);
+
+function subtractOneMinute(hhmm: string): string {
+  const normalized = extractHHmm(hhmm);
+  if (!normalized) return hhmm;
+  const [h, m] = normalized.split(":").map(Number);
+  const total = (h * 60 + m - 1 + 24 * 60) % (24 * 60);
+  const hour = Math.floor(total / 60);
+  const minute = total % 60;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
 const FONTS = {
   regular: FONT_FAMILY.cairoRegular,
   semiBold: FONT_FAMILY.cairoSemiBold,
@@ -419,8 +423,6 @@ export default function TimelineScreen() {
   const [notificationTime, setNotificationTime] = useState(new Date());
   const [notificationTitle, setNotificationTitle] = useState("");
   const [notificationText, setNotificationText] = useState("");
-  const [notificationSound, setNotificationSound] = useState("default");
-  const [previewingSound, setPreviewingSound] = useState<string | null>(null);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [savingNotificationSettings, setSavingNotificationSettings] = useState(false);
   const [addCheckpointModalVisible, setAddCheckpointModalVisible] = useState(false);
@@ -439,7 +441,6 @@ export default function TimelineScreen() {
     name: string;
   } | null>(null);
   const [savingCrud, setSavingCrud] = useState(false);
-  const soundPreviewInstance = useRef<any>(null);
   const dayCardsListRef = useRef<FlatList<HijriMonthDayCard> | null>(null);
   const pendingDayScrollIndexRef = useRef<number | null>(null);
 
@@ -592,19 +593,6 @@ export default function TimelineScreen() {
     };
   }, [selectedGregorianDayKey, locationCoords]);
 
-  useEffect(() => {
-    return () => {
-      const current = soundPreviewInstance.current;
-      if (!current) return;
-      try {
-        current.pause();
-        void current.seekTo(0);
-        current.remove();
-      } catch {}
-      soundPreviewInstance.current = null;
-    };
-  }, []);
-
   const totalPoints = useMemo(() => {
     let total = 0;
 
@@ -670,10 +658,13 @@ export default function TimelineScreen() {
 
   const resolveTodayPrayerTimeForCheckpoint = async (cp: any): Promise<string> => {
     const fallbackTime = String(cp?.notification_time || cp?.time || "08:00");
+    const checkpointId = String(cp?.id ?? "");
+    const applyLeadTime = (time: string) =>
+      PRAYER_CHECKPOINT_IDS.has(checkpointId) ? subtractOneMinute(time) : time;
     if (!locationCoords) {
       const todayKey = gregorianDayKey(new Date());
       const cached = await getPrayerTimesWithoutLocation(todayKey);
-      if (!cached) return fallbackTime;
+      if (!cached) return applyLeadTime(fallbackTime);
 
       const timeByCheckpointId: Record<string, string> = {
         cp_fajr: cached.fajr,
@@ -685,7 +676,7 @@ export default function TimelineScreen() {
         cp_lastthird: calculateLastThirdFromTimes(cached.isha, cached.fajr),
       };
 
-      return timeByCheckpointId[String(cp?.id)] ?? fallbackTime;
+      return applyLeadTime(timeByCheckpointId[checkpointId] ?? fallbackTime);
     }
 
     const todayKey = gregorianDayKey(new Date());
@@ -694,7 +685,7 @@ export default function TimelineScreen() {
       locationCoords.longitude,
       todayKey
     );
-    if (!times) return fallbackTime;
+    if (!times) return applyLeadTime(fallbackTime);
 
     const timeByCheckpointId: Record<string, string> = {
       cp_fajr: times.fajr,
@@ -706,7 +697,7 @@ export default function TimelineScreen() {
       cp_lastthird: calculateLastThirdFromTimes(times.isha, times.fajr),
     };
 
-    return timeByCheckpointId[String(cp?.id)] ?? fallbackTime;
+    return applyLeadTime(timeByCheckpointId[checkpointId] ?? fallbackTime);
   };
 
   const toggleCheckpoint = (checkpointId: string) => {
@@ -963,12 +954,11 @@ export default function TimelineScreen() {
 
   const toggleDefaultCheckpointNotifications = async (cp: any) => {
     try {
-      await stopSoundPreview();
       const nextEnabled = !Boolean(cp.notifications);
       const effectiveTime = await resolveTodayPrayerTimeForCheckpoint(cp);
       const effectiveTitle = String(cp.notification_title ?? "").trim() || `تذكير: ${cp.name}`;
       const effectiveText = String(cp.notification_text ?? "").trim() || `حان وقت ${cp.name}`;
-      const effectiveSound = "adhan.wav";
+      const effectiveSound = "default";
 
       const updated = await updateCheckpointNotificationSettings({
         checkpointId: cp.id,
@@ -1029,7 +1019,6 @@ export default function TimelineScreen() {
     setNotificationTime(parseHHmmToDate(task.notification_time || cp.time || "08:00"));
     setNotificationTitle(String(task.notification_title ?? "").trim());
     setNotificationText(String(task.notification_text ?? "").trim());
-    setNotificationSound(isDefaultTask(task) ? "default" : String(task.notification_sound || "default"));
     setNotificationModalVisible(true);
   };
 
@@ -1048,7 +1037,6 @@ export default function TimelineScreen() {
     setNotificationTime(parseHHmmToDate(cp.notification_time || cp.time || "08:00"));
     setNotificationTitle(String(cp.notification_title ?? "").trim());
     setNotificationText(String(cp.notification_text ?? "").trim());
-    setNotificationSound(String(cp.notification_sound || "default"));
     setNotificationModalVisible(true);
   };
 
@@ -1063,10 +1051,9 @@ export default function TimelineScreen() {
     const notificationTimeHHmm = toHHmm(notificationTime);
     const normalizedTitle = notificationTitle.trim();
     const normalizedText = notificationText.trim();
-    const normalizedSound = notificationSound.trim() || "default";
+    const normalizedSound = "default";
 
     try {
-      await stopSoundPreview();
       setSavingNotificationSettings(true);
 
       if (selectedNotificationTarget.type === "task") {
@@ -1121,7 +1108,7 @@ export default function TimelineScreen() {
           effectiveTime = currentCheckpoint
             ? await resolveTodayPrayerTimeForCheckpoint(currentCheckpoint)
             : notificationTimeHHmm;
-          effectiveSound = "adhan.wav";
+          effectiveSound = "default";
           effectiveTitle =
             String(currentCheckpoint?.notification_title ?? "").trim() ||
             `تذكير: ${selectedNotificationTarget.itemName}`;
@@ -1178,61 +1165,6 @@ export default function TimelineScreen() {
     }
   };
 
-  const isPreviewableSound = (sound: string) =>
-    Boolean(sound) && sound !== "default" && Boolean(PREVIEWABLE_SOUND_ASSETS[sound]);
-
-  const stopSoundPreview = async () => {
-    const current = soundPreviewInstance.current;
-    if (!current) {
-      setPreviewingSound(null);
-      return;
-    }
-
-    try {
-      current.pause();
-    } catch {}
-    try {
-      await current.seekTo(0);
-    } catch {}
-    try {
-      current.remove();
-    } catch {}
-
-    soundPreviewInstance.current = null;
-    setPreviewingSound(null);
-  };
-
-  const playSoundPreview = async (sound: string) => {
-    if (!isPreviewableSound(sound)) {
-      Alert.alert("خطأ", "ملف الصوت غير متاح للمعاينة");
-      return;
-    }
-
-    if (previewingSound === sound) {
-      await stopSoundPreview();
-      return;
-    }
-
-    try {
-      await stopSoundPreview();
-
-      const instance = createAudioPlayer(PREVIEWABLE_SOUND_ASSETS[sound]);
-      instance.addListener("playbackStatusUpdate", (status: any) => {
-        if (!status?.isLoaded) return;
-        if (status?.didJustFinish) {
-          void stopSoundPreview();
-        }
-      });
-
-      instance.play();
-      soundPreviewInstance.current = instance;
-      setPreviewingSound(sound);
-    } catch (e) {
-      console.error("Sound preview failed:", e);
-      await stopSoundPreview();
-      Alert.alert("خطأ", "تعذر تشغيل معاينة الصوت");
-    }
-  };
   const isDefaultTaskModal =
     selectedNotificationTarget?.type === "task" && Boolean(selectedNotificationTarget?.isDefault);
 
@@ -1879,47 +1811,6 @@ export default function TimelineScreen() {
                     multiline
                   />
                 </View>
-
-                <View style={styles.modalField}>
-                  <Text style={styles.modalLabel}>صوت التنبيه</Text>
-                  <View style={styles.soundOptionsRow}>
-                    {SOUND_OPTIONS.map((option) => (
-                      <View key={option} style={styles.soundOptionGroup}>
-                        <Pressable
-                          style={[
-                            styles.soundOptionButton,
-                            notificationSound === option && styles.soundOptionButtonActive,
-                          ]}
-                          onPress={() => setNotificationSound(option)}
-                        >
-                          <Text style={styles.soundOptionText}>
-                            {option === "default" ? "الصوت الافتراضي" : option}
-                          </Text>
-                        </Pressable>
-                        {isPreviewableSound(option) && (
-                          <Pressable
-                            style={styles.soundPreviewButton}
-                            onPress={() => void playSoundPreview(option)}
-                          >
-                            {previewingSound === option ? (
-                              <Square size={14} color="#E5E7EB" />
-                            ) : (
-                              <Play size={14} color="#E5E7EB" />
-                            )}
-                          </Pressable>
-                        )}
-                      </View>
-                    ))}
-                  </View>
-                  <TextInput
-                    style={styles.modalInput}
-                    value={notificationSound}
-                    onChangeText={setNotificationSound}
-                    placeholder="default أو adhan.wav"
-                    placeholderTextColor="#94A3B8"
-                    textAlign="right"
-                  />
-                </View>
               </>
             )}
 
@@ -1936,7 +1827,6 @@ export default function TimelineScreen() {
               <Pressable
                 style={[styles.modalButton, styles.modalCancel]}
                 onPress={() => {
-                  void stopSoundPreview();
                   setNotificationModalVisible(false);
                   setSelectedNotificationTarget(null);
                 }}
@@ -2469,44 +2359,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     fontFamily: FONTS.semiBold,
-  },
-  soundOptionsRow: {
-    flexDirection: "row-reverse",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  soundOptionGroup: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 6,
-  },
-  soundOptionButton: {
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.16)",
-    borderRadius: 999,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    backgroundColor: "rgba(255,255,255,0.04)",
-  },
-  soundOptionButtonActive: {
-    borderColor: "#818CF8",
-    backgroundColor: "rgba(99,102,241,0.25)",
-  },
-  soundOptionText: {
-    color: "#E5E7EB",
-    fontSize: 12,
-    fontWeight: "600",
-    fontFamily: FONTS.semiBold,
-  },
-  soundPreviewButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.16)",
-    backgroundColor: "rgba(255,255,255,0.06)",
   },
   modalActions: {
     marginTop: 6,

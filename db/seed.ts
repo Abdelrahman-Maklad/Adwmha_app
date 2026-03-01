@@ -12,6 +12,27 @@ const ORDER_BY_ID: Record<string, number> = {
   cp_lastthird: 6,
 };
 
+const PRAYER_CHECKPOINT_IDS = new Set([
+  "cp_fajr",
+  "cp_dhuhr",
+  "cp_asr",
+  "cp_maghrib",
+  "cp_isha",
+]);
+
+function subtractOneMinute(hhmm: string): string {
+  const match = String(hhmm ?? "").trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return String(hhmm ?? "");
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return String(hhmm ?? "");
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return String(hhmm ?? "");
+  const total = (hour * 60 + minute - 1 + 24 * 60) % (24 * 60);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
 function ensureRepeatFields(item: any) {
   if (!item.repeat) item.repeat = item.repeat_type ?? "daily";
   if (item.repeat_days === undefined) item.repeat_days = "";
@@ -66,8 +87,16 @@ function applyLatestTimesToCheckpoint(cp: any, times: any, lastThirdTime: string
     changed = true;
   }
 
-  if (cp.notification_time !== nextTime) {
-    cp.notification_time = nextTime;
+  const nextNotificationTime = PRAYER_CHECKPOINT_IDS.has(String(cp.id))
+    ? subtractOneMinute(nextTime)
+    : nextTime;
+  if (cp.notification_time !== nextNotificationTime) {
+    cp.notification_time = nextNotificationTime;
+    changed = true;
+  }
+
+  if (cp.notification_sound !== "default") {
+    cp.notification_sound = "default";
     changed = true;
   }
 
@@ -89,11 +118,14 @@ function migrateCheckpointDoc(
   const beforeRepeat = cp.repeat;
   const beforeRepeatDays = cp.repeat_days;
   const beforeNotificationTitle = cp.notification_title;
+  const beforeNotificationSound = cp.notification_sound;
   ensureCheckpointFields(cp);
+  cp.notification_sound = "default";
   if (
     beforeRepeat !== cp.repeat ||
     beforeRepeatDays !== cp.repeat_days ||
-    beforeNotificationTitle !== cp.notification_title
+    beforeNotificationTitle !== cp.notification_title ||
+    beforeNotificationSound !== cp.notification_sound
   ) {
     changed = true;
   }
@@ -104,7 +136,9 @@ function migrateCheckpointDoc(
     const tLocked = task.locked;
     const tEnableDisableNotifications = task.enable_disable_notifications;
     const tNotificationTitle = task.notification_title;
+    const tNotificationSound = task.notification_sound;
     ensureTaskFields(task);
+    task.notification_sound = "default";
     if (taskNotifCapabilityMap.has(task.id)) {
       task.enable_disable_notifications = taskNotifCapabilityMap.get(task.id);
     }
@@ -113,7 +147,8 @@ function migrateCheckpointDoc(
       tRepeatDays !== task.repeat_days ||
       tLocked !== task.locked ||
       tEnableDisableNotifications !== task.enable_disable_notifications ||
-      tNotificationTitle !== task.notification_title
+      tNotificationTitle !== task.notification_title ||
+      tNotificationSound !== task.notification_sound
     ) {
       changed = true;
     }
@@ -160,7 +195,7 @@ function migrateCheckpointDoc(
         enable_disable_notifications: false,
         notification_time: "",
         notification_title: "",
-        notification_sound: "",
+        notification_sound: "default",
         notification_text: "",
         icon: "pray",
         image: "",

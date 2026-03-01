@@ -11,9 +11,8 @@ Notifications.setNotificationHandler({
 });
 
 type RepeatMode = "daily" | "weekly" | "certain_day" | "certain day";
-type NotificationSound = "default" | string;
 type EntityType = "task" | "checkpoint";
-const CHANNEL_VERSION = "v3";
+const DEFAULT_CHANNEL_ID = "default_v4";
 
 const DAY_TO_WEEKDAY: Record<string, number> = {
   sunday: 1,
@@ -75,13 +74,6 @@ function mapDayToWeekday(day: string): number | null {
   return null;
 }
 
-function normalizeSound(sound?: string): NotificationSound {
-  const value = String(sound ?? "").trim();
-  if (!value || value.toLowerCase() === "default") return "default";
-  if (!value.includes(".")) return `${value}.wav`;
-  return value;
-}
-
 function normalizeTitle(title: string | undefined, itemName: string): string {
   const value = String(title ?? "").trim();
   return value || `تذكير: ${itemName}`;
@@ -90,12 +82,6 @@ function normalizeTitle(title: string | undefined, itemName: string): string {
 function normalizeText(text: string | undefined, itemName: string): string {
   const value = String(text ?? "").trim();
   return value || `حان وقت ${itemName}`;
-}
-
-function getAndroidChannelId(sound: NotificationSound): string {
-  if (sound === "default") return `default_${CHANNEL_VERSION}`;
-  const slug = sound.toLowerCase().replace(/[^a-z0-9_\-.]/g, "_");
-  return `sound_${slug}_${CHANNEL_VERSION}`;
 }
 
 async function ensurePermissions() {
@@ -111,14 +97,13 @@ async function ensurePermissions() {
   );
 }
 
-async function ensureChannelForSound(sound: NotificationSound) {
+async function ensureDefaultChannel() {
   if (Platform.OS !== "android") return;
 
-  const channelId = getAndroidChannelId(sound);
-  await Notifications.setNotificationChannelAsync(channelId, {
-    name: channelId,
+  await Notifications.setNotificationChannelAsync(DEFAULT_CHANNEL_ID, {
+    name: DEFAULT_CHANNEL_ID,
     importance: Notifications.AndroidImportance.DEFAULT,
-    sound: sound === "default" ? "default" : sound,
+    sound: "default",
   });
 }
 
@@ -155,14 +140,12 @@ async function scheduleForEntity(input: {
 
   const repeat = String(input.repeat ?? "daily").toLowerCase() as RepeatMode;
   const repeatDays = parseRepeatDays(input.repeatDays);
-  const sound = normalizeSound(input.notificationSound);
-
-  await ensureChannelForSound(sound);
+  await ensureDefaultChannel();
 
   const content: Notifications.NotificationContentInput = {
     title: normalizeTitle(input.notificationTitle, input.itemName),
     body: normalizeText(input.notificationText, input.itemName),
-    sound,
+    sound: "default",
     data: {
       [dataKey]: input.entityId,
     },
@@ -170,7 +153,7 @@ async function scheduleForEntity(input: {
 
   if (Platform.OS === "android") {
     (content as Notifications.NotificationContentInput & { channelId?: string }).channelId =
-      getAndroidChannelId(sound);
+      DEFAULT_CHANNEL_ID;
   }
 
   if (repeat === "weekly") {

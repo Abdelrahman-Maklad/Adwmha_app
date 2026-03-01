@@ -9,7 +9,20 @@ type Times = {
   isha: string;
 };
 
-const CP_SOUND = "adhan.wav";
+const CP_SOUND = "default";
+
+function subtractOneMinute(hhmm: string): string {
+  const match = String(hhmm ?? "").trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return String(hhmm ?? "");
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return String(hhmm ?? "");
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return String(hhmm ?? "");
+  const total = (hour * 60 + minute - 1 + 24 * 60) % (24 * 60);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
 
 export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
   const makeCpNotifText = (name: string) => ` حي علي الصلاة حي علي الفلاح 🕌`;
@@ -32,7 +45,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
 
       notifications: true,
       enable_disable_notifications: true,
-      notification_time: times.fajr,
+      notification_time: subtractOneMinute(times.fajr),
       notification_title: makeCpNotifTitle("الفجر"),
       notification_sound: CP_SOUND,
       notification_text: makeCpNotifText("الفجر"),
@@ -252,7 +265,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
 
       notifications: true,
       enable_disable_notifications: true,
-      notification_time: times.dhuhr,
+      notification_time: subtractOneMinute(times.dhuhr),
       notification_title: makeCpNotifTitle("الظهر"),
       notification_sound: CP_SOUND,
       notification_text: makeCpNotifText("الظهر"),
@@ -394,7 +407,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
 
       notifications: true,
       enable_disable_notifications: true,
-      notification_time: times.asr,
+      notification_time: subtractOneMinute(times.asr),
       notification_title: makeCpNotifTitle("العصر"),
       notification_sound: CP_SOUND,
       notification_text: makeCpNotifText("العصر"),
@@ -480,7 +493,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
 
       notifications: true,
       enable_disable_notifications: true,
-      notification_time: times.maghrib,
+      notification_time: subtractOneMinute(times.maghrib),
       notification_title: makeCpNotifTitle("المغرب"),
       notification_sound: CP_SOUND,
       notification_text: makeCpNotifText("المغرب"),
@@ -566,7 +579,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
 
       notifications: true,
       enable_disable_notifications: true,
-      notification_time: times.isha,
+      notification_time: subtractOneMinute(times.isha),
       notification_title: makeCpNotifTitle("العشاء"),
       notification_sound: CP_SOUND,
       notification_text: makeCpNotifText("العشاء"),
