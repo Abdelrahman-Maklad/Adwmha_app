@@ -111,29 +111,28 @@ export default function QuranReferenceScreen({ route, navigation }: Props) {
       resizeMode="cover"
     >
       <View style={styles.overlay} />
-      <View style={styles.card}>
-        {!fontReady || loading ? (
-          <View style={styles.centerState}>
-            <ActivityIndicator color="#E5E7EB" />
+
+      {!fontReady || loading ? (
+        <View style={styles.centerState}>
+          <ActivityIndicator color="#E5E7EB" />
             <Text style={styles.stateText}>جاري تحميل الآيات...</Text>
-          </View>
-        ) : error ? (
-          <View style={styles.centerState}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        ) : ayat.length === 0 ? (
-          <View style={styles.centerState}>
+        </View>
+      ) : error ? (
+        <View style={styles.centerState}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : ayat.length === 0 ? (
+        <View style={styles.centerState}>
             <Text style={styles.stateText}>لا توجد آيات مطابقة للمعايير المحددة.</Text>
-          </View>
-        ) : (
-          <ScrollView contentContainerStyle={styles.previewContent}>
-            {showBasmalaHeader && (
-              <Text style={[styles.basmalaText, { fontFamily: verseFontFamily }]}>{BASMALA_TASHKEEL}</Text>
-            )}
-            <Text style={[styles.previewText, { fontFamily: verseFontFamily }]}>{fullSurahPreview}</Text>
-          </ScrollView>
-        )}
-      </View>
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.previewContent}>
+          {showBasmalaHeader && (
+            <Text style={[styles.basmalaText, { fontFamily: verseFontFamily }]}>{BASMALA_TASHKEEL}</Text>
+          )}
+          <Text style={[styles.previewText, { fontFamily: verseFontFamily }]}>{fullSurahPreview}</Text>
+        </ScrollView>
+      )}
     </ImageBackground>
   );
 }
@@ -146,17 +145,6 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(10,14,26,0.82)",
-  },
-  card: {
-    flex: 1,
-    marginHorizontal: 16,
-    marginVertical: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
-    backgroundColor: "rgba(15,23,42,0.85)",
-    padding: 16,
-    paddingBottom: 10,
   },
   centerState: {
     flex: 1,
@@ -178,15 +166,17 @@ const styles = StyleSheet.create({
     fontFamily: FONT_FAMILY.cairoRegular,
   },
   previewContent: {
+    flexGrow: 1,
     paddingBottom: 18,
-    paddingHorizontal: 2,
+    paddingHorizontal: 16,
+    paddingTop: 16,
     gap: 8,
   },
   basmalaText: {
     color: "#F8FAFC",
     textAlign: "center",
     writingDirection: "rtl",
-    fontSize: 34,
+    fontSize: 20,
     lineHeight: 48,
     marginBottom: 2,
   },
@@ -194,14 +184,8 @@ const styles = StyleSheet.create({
     color: "#E2E8F0",
     textAlign: "right",
     writingDirection: "rtl",
-    fontSize: 32,
+    fontSize: 25,
     lineHeight: 42,
-    backgroundColor: "rgba(255,255,255,0.03)",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    paddingHorizontal: 12,
-    paddingVertical: 12,
     fontFamily: FONT_FAMILY.cairoRegular,
   },
 });
