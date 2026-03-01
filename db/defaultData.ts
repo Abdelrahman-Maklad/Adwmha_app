@@ -139,7 +139,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           repeat_days: ["Friday"],
 
           notifications: false,
-          enable_disable_notifications: false,
+          enable_disable_notifications: true,
           notification_time: "",
           notification_title: "",
           notification_sound: "",
