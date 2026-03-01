@@ -4,6 +4,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Check } from "lucide-react-native";
 import { AdhkarItem } from "../db/adhkarTypes";
 import { ADHKAR_PRIORITY_COLORS } from "../constants/adhkarColors";
+import { FONT_FAMILY, resolveArabicTextFont } from "../constants/fonts";
+import { formatAyahMarker } from "../utils/ayahMarker";
 
 const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient as any);
 
@@ -13,6 +15,9 @@ type Props = {
   onCardPress: () => void;
   isCompleted: boolean;
   isDisabled: boolean;
+  isQuranContent?: boolean;
+  quranAyahNumber?: number;
+  hasHafsFont?: boolean;
   onOpenQuran?: () => void;
 };
 
@@ -22,6 +27,9 @@ export default function AdhkarCard({
   onCardPress,
   isCompleted,
   isDisabled,
+  isQuranContent = false,
+  quranAyahNumber,
+  hasHafsFont = false,
   onOpenQuran,
 }: Props) {
   const colors = ADHKAR_PRIORITY_COLORS[item.priority];
@@ -60,6 +68,10 @@ export default function AdhkarCard({
   };
 
   const countLabel = useMemo(() => `${currentCount}/${item.repeat}`, [currentCount, item.repeat]);
+  const markerText = useMemo(() => {
+    if (!isQuranContent || typeof quranAyahNumber !== "number") return "";
+    return formatAyahMarker(quranAyahNumber);
+  }, [isQuranContent, quranAyahNumber]);
 
   return (
     <Pressable
@@ -95,7 +107,18 @@ export default function AdhkarCard({
         <View pointerEvents="none" style={[styles.completedOverlay, { backgroundColor: colors.completionOverlay }]} />
       )}
 
-      <Text style={[styles.textAr, { color: colors.textColor }]}>{item.text_ar}</Text>
+      <Text
+        style={[
+          styles.textAr,
+          {
+            color: colors.textColor,
+            fontFamily: resolveArabicTextFont(true, hasHafsFont),
+          },
+        ]}
+      >
+        {item.text_ar}
+        {markerText ? ` ${markerText}` : ""}
+      </Text>
 
       {onOpenQuran && (
         <View style={styles.quranActionRow}>
@@ -149,11 +172,11 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   textAr: {
-    fontSize: 18,
+    fontSize: 25,
     lineHeight: 34,
     textAlign: "right",
     writingDirection: "rtl",
-    fontFamily: "Cairo-Regular",
+    fontFamily: FONT_FAMILY.cairoRegular,
   },
   footerRow: {
     flexDirection: "row",
@@ -174,18 +197,19 @@ const styles = StyleSheet.create({
   quranActionText: {
     color: "#FDE68A",
     fontSize: 13,
-    fontFamily: "Cairo-SemiBold",
+    fontFamily: FONT_FAMILY.cairoSemiBold,
   },
   badge: {
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 8,
+    paddingBottom: 6,
+    paddingTop: 1,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
   },
   badgeText: {
     fontSize: 14,
-    fontFamily: "Cairo-SemiBold",
+    fontFamily: FONT_FAMILY.cairoSemiBold,
   },
   counterWrap: {
     flexDirection: "row",
@@ -196,7 +220,7 @@ const styles = StyleSheet.create({
     minWidth: 52,
     textAlign: "center",
     fontSize: 18,
-    fontFamily: "Cairo-Bold",
+    fontFamily: FONT_FAMILY.cairoBold,
   },
   checkBadge: {
     width: 20,

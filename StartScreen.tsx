@@ -1,7 +1,16 @@
-﻿import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { Animated, Image, ImageBackground, StyleSheet, useColorScheme, View } from "react-native";
+import { useFonts } from "expo-font";
+import { FONT_FAMILY, resolveArabicTextFont } from "./constants/fonts";
 
 export default function StartScreen() {
+  const [fontsLoaded, fontLoadError] = useFonts({
+    [FONT_FAMILY.cairoRegular]: require("./assets/fonts/Cairo-Regular.ttf"),
+    [FONT_FAMILY.hafs]: require("./assets/fonts/Hafs-Font-v0.09.otf"),
+  });
+  const hasHafsFont = fontsLoaded && !fontLoadError;
+  const phraseFontFamily = resolveArabicTextFont(true, hasHafsFont);
+
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const logoTranslateY = useRef(new Animated.Value(10)).current;
   const phraseOpacity = useRef(new Animated.Value(0)).current;
@@ -112,6 +121,7 @@ export default function StartScreen() {
           style={[
             styles.phraseText,
             {
+              fontFamily: phraseFontFamily,
               color: isDark ? "#F3F4F6" : "#0F172A",
               opacity: phraseOpacity,
               transform: [{ translateY: phraseTranslateY }],
@@ -159,7 +169,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    gap: 14,
+    gap: 5,
     paddingHorizontal: 24,
   },
   logo: {
@@ -167,10 +177,10 @@ const styles = StyleSheet.create({
     height: 180,
   },
   phraseText: {
-    fontSize: 20,
+    fontFamily: FONT_FAMILY.hafs,
+    fontSize: 26,
     lineHeight: 32,
     textAlign: "center",
-    fontWeight: "700",
     maxWidth: 320,
   },
   dotsRow: {
@@ -178,7 +188,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    marginTop: 2,
+    marginTop: 12,
   },
   dot: {
     width: 8,

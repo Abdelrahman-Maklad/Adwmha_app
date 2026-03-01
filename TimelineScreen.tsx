@@ -53,6 +53,7 @@ import {
 import StartScreen from "./StartScreen";
 import { RootStackParamList } from "./navigation/types";
 import { mapRedirectLabel } from "./utils/redirectMapper";
+import { FONT_FAMILY, resolveArabicTextFont } from "./constants/fonts";
 
 import {
   Moon,
@@ -360,9 +361,10 @@ const PREVIEWABLE_SOUND_ASSETS: Record<string, any> = {
   "adhan.wav": require("./assets/sounds/adhan.wav"),
 };
 const FONTS = {
-  regular: "Cairo-Regular",
-  semiBold: "Cairo-SemiBold",
-  bold: "Cairo-Bold",
+  regular: FONT_FAMILY.cairoRegular,
+  semiBold: FONT_FAMILY.cairoSemiBold,
+  bold: FONT_FAMILY.cairoBold,
+  hafs: FONT_FAMILY.hafs,
 } as const;
 const REPEAT_MODE_OPTIONS = [
   { label: "يومي", value: "daily" as const },
@@ -380,11 +382,14 @@ const WEEKDAY_OPTIONS = [
 
 export default function TimelineScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontLoadError] = useFonts({
     [FONTS.regular]: require("./assets/fonts/Cairo-Regular.ttf"),
     [FONTS.semiBold]: require("./assets/fonts/Cairo-SemiBold.ttf"),
     [FONTS.bold]: require("./assets/fonts/Cairo-Bold.ttf"),
+    [FONTS.hafs]: require("./assets/fonts/Hafs-Font-v0.09.otf"),
   });
+  const hasHafsFont = fontsLoaded && !fontLoadError;
+  const fontReady = fontsLoaded || Boolean(fontLoadError);
 
   const [checkpoints, setCheckpoints] = useState<any[]>([]);
   const [err, setErr] = useState("");
@@ -603,6 +608,12 @@ export default function TimelineScreen() {
       soundPreviewInstance.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (__DEV__ && fontLoadError) {
+      console.warn("[TimelineScreen] Hafs font failed to load; using Cairo fallback.", fontLoadError);
+    }
+  }, [fontLoadError]);
 
   const totalPoints = useMemo(() => {
     let total = 0;
@@ -1244,7 +1255,7 @@ export default function TimelineScreen() {
     );
   }
 
-  if (!bootDelayDone || !fontsLoaded) {
+  if (!bootDelayDone || !fontReady) {
     return <StartScreen />;
   }
 
@@ -1518,6 +1529,10 @@ export default function TimelineScreen() {
                                   style={[
                                     styles.taskText,
                                     {
+                                      fontFamily: resolveArabicTextFont(
+                                        redirectTarget?.kind === "quran",
+                                        hasHafsFont
+                                      ),
                                       color: taskDone ? darkenColor(color, 10) : taskColor,
                                       textDecorationLine: taskDone ? "line-through" : "none",
                                       opacity: taskDone ? 0.7 : 1,
@@ -2212,10 +2227,9 @@ const styles = StyleSheet.create({
   },
   headerIcon: { width: 18, alignItems: "center" },
   headerName: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#FFFFFF",
     fontFamily: FONTS.bold,
+    fontSize: 14,
+    color: "#FFFFFF",
     flexShrink: 1,
     textAlign: "right",
   },

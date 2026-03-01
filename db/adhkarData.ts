@@ -6,7 +6,7 @@ export const ADHKAR_SEED_DOCS: AdhkarSetDoc[] = [
     "type": "morning",
     "title_ar": "أذكار الصباح",
     "items": [
-      { "id": "m_001", "key": "ayat_al_kursi", "text_ar": "آية الكرسي (البقرة: 255)", "repeat": 1, "priority": 1, "content_type": "quran", "quran": { "surah": 2, "mode": "single", "ayah": 255 } },
+      { "id": "m_001", "key": "ayat_al_kursi", "text_ar": "آية الكرسي", "repeat": 1, "priority": 1, "content_type": "quran", "quran": { "surah": 2, "mode": "single", "ayah": 255 } },
       { "id": "m_002", "key": "surah_al_ikhlas", "text_ar": "سورة الإخلاص", "repeat": 3, "priority": 1, "content_type": "quran", "quran": { "surah": 112, "mode": "full" } },
       { "id": "m_003", "key": "surah_al_falaq", "text_ar": "سورة الفلق", "repeat": 3, "priority": 1, "content_type": "quran", "quran": { "surah": 113, "mode": "full" } },
       { "id": "m_004", "key": "surah_an_nas", "text_ar": "سورة الناس", "repeat": 3, "priority": 1, "content_type": "quran", "quran": { "surah": 114, "mode": "full" } },

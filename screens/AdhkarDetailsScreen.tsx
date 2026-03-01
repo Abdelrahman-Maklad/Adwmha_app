@@ -13,6 +13,7 @@ import { ensureAdhkarSeededAndGet } from "../db/adhkarRepository";
 import { AdhkarSetDoc } from "../db/adhkarTypes";
 import AdhkarCard from "../components/AdhkarCard";
 import { RootStackParamList } from "../navigation/types";
+import { FONT_FAMILY } from "../constants/fonts";
 
 type Props = NativeStackScreenProps<RootStackParamList, "AdhkarDetails">;
 
@@ -22,11 +23,20 @@ export default function AdhkarDetailsScreen({ route, navigation }: Props) {
   const [error, setError] = useState("");
   const [counts, setCounts] = useState<Record<string, number>>({});
 
-  const [fontsLoaded] = useFonts({
-    "Cairo-Regular": require("../assets/fonts/Cairo-Regular.ttf"),
-    "Cairo-SemiBold": require("../assets/fonts/Cairo-SemiBold.ttf"),
-    "Cairo-Bold": require("../assets/fonts/Cairo-Bold.ttf"),
+  const [fontsLoaded, fontLoadError] = useFonts({
+    [FONT_FAMILY.cairoRegular]: require("../assets/fonts/Cairo-Regular.ttf"),
+    [FONT_FAMILY.cairoSemiBold]: require("../assets/fonts/Cairo-SemiBold.ttf"),
+    [FONT_FAMILY.cairoBold]: require("../assets/fonts/Cairo-Bold.ttf"),
+    [FONT_FAMILY.hafs]: require("../assets/fonts/Hafs-Font-v0.09.otf"),
   });
+  const hasHafsFont = fontsLoaded && !fontLoadError;
+  const fontReady = fontsLoaded || Boolean(fontLoadError);
+
+  useEffect(() => {
+    if (__DEV__ && fontLoadError) {
+      console.warn("[AdhkarDetailsScreen] Hafs font failed to load; using Cairo fallback.", fontLoadError);
+    }
+  }, [fontLoadError]);
 
   useEffect(() => {
     navigation.setOptions({
@@ -96,7 +106,7 @@ export default function AdhkarDetailsScreen({ route, navigation }: Props) {
     >
       <View style={styles.backgroundOverlay} />
 
-      {loading || !fontsLoaded ? (
+      {loading || !fontReady ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#E5E7EB" />
         </View>
@@ -131,6 +141,9 @@ export default function AdhkarDetailsScreen({ route, navigation }: Props) {
               }
               isCompleted={isCompleted}
               isDisabled={isCompleted}
+              isQuranContent={isQuran}
+              quranAyahNumber={isQuran && item.quran?.mode === "single" ? item.quran?.ayah : undefined}
+              hasHafsFont={hasHafsFont}
               onOpenQuran={
                 isQuran
                   ? () => {
@@ -184,7 +197,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: "#FCA5A5",
     fontSize: 16,
-    fontFamily: "Cairo-SemiBold",
+    fontFamily: FONT_FAMILY.cairoSemiBold,
     writingDirection: "rtl",
   },
 });
