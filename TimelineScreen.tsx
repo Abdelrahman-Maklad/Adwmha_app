@@ -974,11 +974,7 @@ export default function TimelineScreen() {
         return;
       }
 
-      setCheckpoints((prev) =>
-        prev.map((checkpoint: any) =>
-          checkpoint.id === updated.checkpoint.id ? updated.checkpoint : checkpoint
-        )
-      );
+      await refreshCheckpointsForDay(selectedGregorianDayKey || todayGregorianDayKey);
 
       if (nextEnabled) {
         const scheduled = await scheduleCheckpointNotifications({
@@ -1073,9 +1069,7 @@ export default function TimelineScreen() {
           return;
         }
 
-        setCheckpoints((prev) =>
-          prev.map((cp: any) => (cp.id === updated.checkpoint.id ? updated.checkpoint : cp))
-        );
+        await refreshCheckpointsForDay(selectedGregorianDayKey || todayGregorianDayKey);
 
         if (notificationsEnabled) {
           const scheduled = await scheduleTaskNotifications({
@@ -1131,9 +1125,7 @@ export default function TimelineScreen() {
           return;
         }
 
-        setCheckpoints((prev) =>
-          prev.map((cp: any) => (cp.id === updated.checkpoint.id ? updated.checkpoint : cp))
-        );
+        await refreshCheckpointsForDay(selectedGregorianDayKey || todayGregorianDayKey);
 
         if (notificationsEnabled) {
           const scheduled = await scheduleCheckpointNotifications({
