@@ -29,6 +29,8 @@ import {
   deleteTaskFromCheckpoint,
   updateCheckpointNotificationSettings,
   updateTaskNotificationSettings,
+  getThemePreference,
+  setThemePreference as saveThemePreference,
 } from "./db/queries";
 import { loadCompletionStateByDay, saveCompletionStateByDay } from "./db/progress";
 import {
@@ -53,6 +55,13 @@ import StartScreen from "./StartScreen";
 import { RootStackParamList } from "./navigation/types";
 import { mapRedirectLabel } from "./utils/redirectMapper";
 import { FONT_FAMILY } from "./constants/fonts";
+import {
+  ThemePreference,
+  cycleThemePreference,
+  getThemePreferenceLabel,
+  getThemeTokens,
+  resolveThemePreference,
+} from "./constants/theme";
 
 import {
   Moon,
@@ -192,13 +201,19 @@ function CalendarHeader({
   dateInfo,
   locationLabel,
   totalPoints,
-  isDark,
+  theme,
+  themePreference,
+  resolvedTheme,
+  onCycleTheme,
   onReturnToToday,
 }: {
   dateInfo: DateInfo | null;
   locationLabel: string;
   totalPoints: number;
-  isDark: boolean;
+  theme: ReturnType<typeof getThemeTokens>;
+  themePreference: ThemePreference;
+  resolvedTheme: "light" | "dark";
+  onCycleTheme: () => void;
   onReturnToToday: () => void;
 }) {
   return (
@@ -207,7 +222,9 @@ function CalendarHeader({
         <View style={styles.topRowRight}>
           <Image
             source={
-              isDark ? require("./assets/logo-white.png") : require("./assets/logo-gradient.png")
+              themePreference === "dark" || (themePreference === "system" && resolvedTheme === "dark")
+                ? require("./assets/logo-white-dark-theme.png")
+                : require("./assets/logo-gradient-lightheme.png")
             }
             style={styles.logo}
             resizeMode="contain"
@@ -215,9 +232,9 @@ function CalendarHeader({
         </View>
 
         <View style={styles.topRowLeft}>
-          <View style={styles.locationPill}>
-            <MapPin size={14} color="#A5B4FC" />
-            <Text style={styles.locationText} numberOfLines={1}>
+          <View style={[styles.locationPill, { backgroundColor: theme.locationPillBg }]}>
+            <MapPin size={14} color={theme.locationPillText} />
+            <Text style={[styles.locationText, { color: theme.locationPillText }]} numberOfLines={1}>
               {locationLabel}
             </Text>
           </View>
@@ -226,19 +243,47 @@ function CalendarHeader({
 
       <View style={styles.secondRow}>
         <View style={styles.dateCluster}>
-          <Text style={styles.hijriDate}>{dateInfo ? formatHijriDate(dateInfo.hijri) : "\u062C\u0627\u0631\u064A \u0627\u0644\u062A\u062D\u0645\u064A\u0644..."}</Text>
-          <Text style={styles.gregorianDate}>{dateInfo ? formatGregorianDate(dateInfo.gregorian) : ""}</Text>
+          <Text style={[styles.hijriDate, { color: theme.textPrimary }]}>
+            {dateInfo ? formatHijriDate(dateInfo.hijri) : "\u062C\u0627\u0631\u064A \u0627\u0644\u062A\u062D\u0645\u064A\u0644..."}
+          </Text>
+          <Text style={[styles.gregorianDate, { color: theme.textMuted }]}>
+            {dateInfo ? formatGregorianDate(dateInfo.gregorian) : ""}
+          </Text>
         </View>
 
-        <View style={styles.pointsCounter}>
-          <Star size={14} color="#A7F3D0" />
-          <Text style={styles.pointsCounterLabel}>نقاط اليوم</Text>
-          <Text style={styles.pointsCounterValue}>{toArabicDigits(totalPoints)}</Text>
+        <View style={[styles.pointsCounter, { backgroundColor: theme.pointsPillBg }]}>
+          <Star size={14} color={theme.pointsPillLabel} />
+          <Text style={[styles.pointsCounterLabel, { color: theme.pointsPillLabel }]}>نقاط اليوم</Text>
+          <Text style={[styles.pointsCounterValue, { color: theme.pointsPillValue }]}>
+            {toArabicDigits(totalPoints)}
+          </Text>
         </View>
 
-        <Pressable style={styles.calendarIconWrap} onPress={onReturnToToday}>
-          <Calendar size={20} color="#7B6CF6" />
-        </Pressable>
+        <View style={styles.headerActionRow}>
+          <Pressable
+            style={[
+              styles.themeToggleButton,
+              { backgroundColor: theme.dayCardBg, borderColor: theme.dayCardBorder },
+            ]}
+            onPress={onCycleTheme}
+          >
+            <Text style={[styles.themeToggleText, { color: theme.textSecondary }]}>
+              {getThemePreferenceLabel(themePreference)}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[
+              styles.calendarIconWrap,
+              {
+                backgroundColor: theme.calendarIconBg,
+                borderColor: theme.calendarIconBorder,
+              },
+            ]}
+            onPress={onReturnToToday}
+          >
+            <Calendar size={20} color={theme.calendarIconColor} />
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -441,11 +486,32 @@ export default function TimelineScreen() {
     name: string;
   } | null>(null);
   const [savingCrud, setSavingCrud] = useState(false);
+  const [themePreference, setThemePreferenceState] = useState<ThemePreference>("system");
   const dayCardsListRef = useRef<FlatList<HijriMonthDayCard> | null>(null);
   const pendingDayScrollIndexRef = useRef<number | null>(null);
 
   const colorScheme = useColorScheme();
-  const isDark = colorScheme !== "light";
+  const resolvedTheme = resolveThemePreference(themePreference, colorScheme);
+  const theme = getThemeTokens(resolvedTheme);
+
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        const pref = await getThemePreference();
+        if (mounted) setThemePreferenceState(pref);
+      } catch {}
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleCycleTheme = () => {
+    const next = cycleThemePreference(themePreference);
+    setThemePreferenceState(next);
+    void saveThemePreference(next);
+  };
 
   const toggleWeekday = (
     value: string,
@@ -1162,9 +1228,9 @@ export default function TimelineScreen() {
 
   if (err) {
     return (
-      <View style={styles.screen}>
-        <Text style={styles.title}>Error</Text>
-        <Text style={styles.errText}>{err}</Text>
+      <View style={[styles.screen, { backgroundColor: theme.screenBackground }]}>
+        <Text style={[styles.title, { color: theme.textPrimary }]}>Error</Text>
+        <Text style={[styles.errText, { color: "#DC2626" }]}>{err}</Text>
       </View>
     );
   }
@@ -1175,18 +1241,26 @@ export default function TimelineScreen() {
 
   return (
     <ImageBackground
-      source={require("./assets/islamic ornament background.png")}
-      style={styles.screen}
+      source={theme.backgroundImage}
+      style={[styles.screen, { backgroundColor: theme.screenBackground }]}
       imageStyle={{ transform: [{ scale: 1.5}, {translateX: -20 }] }}
       resizeMode="cover"
     >
-      <View style={styles.backgroundOverlay} />
-      <View style={styles.fixedTopBarContainer}>
+      <View style={[styles.backgroundOverlay, { backgroundColor: theme.overlayColor }]} />
+      <View
+        style={[
+          styles.fixedTopBarContainer,
+          { backgroundColor: theme.topBarBackground, borderBottomColor: theme.topBarBorder },
+        ]}
+      >
         <CalendarHeader
           dateInfo={dateInfo}
           locationLabel={locationLabel}
           totalPoints={totalPoints}
-          isDark={isDark}
+          theme={theme}
+          themePreference={themePreference}
+          resolvedTheme={resolvedTheme}
+          onCycleTheme={handleCycleTheme}
           onReturnToToday={handleReturnToToday}
         />
         <FlatList
@@ -1204,21 +1278,42 @@ export default function TimelineScreen() {
               <Pressable
                 style={[
                   styles.dayCard,
+                  { borderColor: theme.dayCardBorder, backgroundColor: theme.dayCardBg },
                   selected && styles.dayCardSelected,
+                  selected && {
+                    borderColor: theme.dayCardSelectedBorder,
+                    backgroundColor: theme.dayCardSelectedBg,
+                  },
                   day.isToday && styles.dayCardToday,
                 ]}
                 onPress={() => handleSelectDay(day.gregorianKey)}
               >
-                <Text style={[styles.dayCardWeekday, selected && styles.dayCardWeekdaySelected]}>
+                <Text
+                  style={[
+                    styles.dayCardWeekday,
+                    { color: theme.textMuted },
+                    selected && styles.dayCardWeekdaySelected,
+                    selected && { color: theme.textPrimary },
+                  ]}
+                >
                   {day.weekdayAr}
                 </Text>
-                <Text style={[styles.dayCardDay, selected && styles.dayCardDaySelected]}>
+                <Text
+                  style={[
+                    styles.dayCardDay,
+                    { color: theme.textPrimary },
+                    selected && styles.dayCardDaySelected,
+                    selected && { color: theme.textOnAccent },
+                  ]}
+                >
                   {toArabicDigits(day.hijriDay)}
                 </Text>
                 <Text
                   style={[
                     styles.dayCardGregorianSmall,
+                    { color: theme.textMuted },
                     selected && styles.dayCardGregorianSmallSelected,
+                    selected && { color: theme.textSecondary },
                   ]}
                 >
                   {`${toArabicDigits(normalizeDayWithoutLeadingZero(day.gregorianDay))} ${day.gregorianMonthAr}`}
@@ -1235,8 +1330,14 @@ export default function TimelineScreen() {
         contentContainerStyle={{ paddingVertical: 18, paddingHorizontal: 14 }}
         ListHeaderComponent={
           <View style={styles.addCheckpointRow}>
-            <Pressable style={styles.addCheckpointButton} onPress={openAddCheckpointModal}>
-              <Plus size={16} color="#E5E7EB" />
+            <Pressable
+              style={[
+                styles.addCheckpointButton,
+                { borderColor: theme.actionButtonBorder, backgroundColor: theme.actionButtonBg },
+              ]}
+              onPress={openAddCheckpointModal}
+            >
+              <Plus size={16} color={theme.iconPrimary} />
             </Pressable>
           </View>
         }
@@ -1259,7 +1360,9 @@ export default function TimelineScreen() {
                       },
                     ]}
                   >
-                    <Text style={[styles.timelineTimeText, { color: "#FFFFFF" }]}>{formatTimeLabel(cp.time)}</Text>
+                    <Text style={[styles.timelineTimeText, { color: theme.textOnAccent }]}>
+                      {formatTimeLabel(cp.time)}
+                    </Text>
                   </View>
                 </View>
                 <View style={[styles.line, { backgroundColor: withAlpha(color, 0.6) }]} />
@@ -1270,7 +1373,10 @@ export default function TimelineScreen() {
                   <View style={styles.circleActionsRow}>
                     {cp.enable_disable_notifications && (
                       <Pressable
-                        style={styles.circleActionButton}
+                        style={[
+                          styles.circleActionButton,
+                          { borderColor: theme.actionButtonBorder, backgroundColor: theme.actionButtonBg },
+                        ]}
                         onPress={(event) => {
                           event.stopPropagation();
                           if (isDefaultCheckpoint(cp)) {
@@ -1281,22 +1387,25 @@ export default function TimelineScreen() {
                         }}
                       >
                         {cp.notifications ? (
-                          <Bell size={15} color="#E5E7EB" />
+                          <Bell size={15} color={theme.iconPrimary} />
                         ) : (
-                          <BellOff size={15} color="#E5E7EB" />
+                          <BellOff size={15} color={theme.iconPrimary} />
                         )}
                       </Pressable>
                     )}
 
                     {canAddTaskToCheckpoint(cp) && (
                       <Pressable
-                        style={styles.circleActionButton}
+                        style={[
+                          styles.circleActionButton,
+                          { borderColor: theme.actionButtonBorder, backgroundColor: theme.actionButtonBg },
+                        ]}
                         onPress={(event) => {
                           event.stopPropagation();
                           openAddTaskModal(cp);
                         }}
                       >
-                        <Plus size={15} color="#E5E7EB" />
+                        <Plus size={15} color={theme.iconPrimary} />
                       </Pressable>
                     )}
 
@@ -1317,8 +1426,8 @@ export default function TimelineScreen() {
                     style={[
                       styles.headerPill,
                       {
-                        borderColor: "rgba(255,255,255,0.13)",
-                        backgroundColor: "rgba(255,255,255,0.03)",
+                        borderColor: theme.headerPillBorder,
+                        backgroundColor: theme.headerPillBg,
                       },
                     ]}
                     onPress={() => toggleCheckpoint(cp.id)}
@@ -1330,7 +1439,7 @@ export default function TimelineScreen() {
                         {CpIcon ? <CpIcon size={16} color={color} /> : null}
                       </View>
 
-                      <Text style={styles.headerName} numberOfLines={1}>
+                      <Text style={[styles.headerName, { color: theme.textPrimary }]} numberOfLines={1}>
                         {cp.name}
                       </Text>
                     </View>
@@ -1342,7 +1451,7 @@ export default function TimelineScreen() {
                     {tasks.map((t: any) => {
                       const TaskIcon = ICON_MAP[String(t.icon || "").toLowerCase()];
                       const isMain = t.type === "main_task";
-                      const taskColor = isMain ? color : "#E5E7EB";
+                      const taskColor = isMain ? color : theme.textPrimary;
                       const taskDone = Boolean(doneState[t.id]);
                       const taskPoints = Number(t.points ?? 0);
                       const hasChecklist = (t.checklist ?? []).length > 0;
@@ -1355,16 +1464,19 @@ export default function TimelineScreen() {
                             <View style={styles.circleActionsRow}>
                               {t.enable_disable_notifications && (
                                 <Pressable
-                                  style={styles.circleActionButton}
+                                  style={[
+                                    styles.circleActionButton,
+                                    { borderColor: theme.actionButtonBorder, backgroundColor: theme.actionButtonBg },
+                                  ]}
                                   onPress={(event) => {
                                     event.stopPropagation();
                                     openTaskNotificationMenu(cp, t);
                                   }}
                                 >
                                   {t.notifications ? (
-                                    <Bell size={15} color="#E5E7EB" />
+                                    <Bell size={15} color={theme.iconPrimary} />
                                   ) : (
-                                    <BellOff size={15} color="#E5E7EB" />
+                                    <BellOff size={15} color={theme.iconPrimary} />
                                   )}
                                 </Pressable>
                               )}
@@ -1486,10 +1598,10 @@ export default function TimelineScreen() {
                                         {
                                           backgroundColor: itemDone
                                             ? withAlpha(color, 0.1)
-                                            : "rgba(255,255,255,0.02)",
+                                            : theme.checklistBg,
                                           borderColor: itemDone
                                             ? withAlpha(color, 0.3)
-                                            : "rgba(255,255,255,0.06)",
+                                            : theme.checklistBorder,
                                         },
                                       ]}
                                       onPress={() => void toggleItemDone(item.id)}
@@ -1511,7 +1623,7 @@ export default function TimelineScreen() {
                                       {ItemIcon && (
                                         <ItemIcon
                                           size={14}
-                                          color={itemDone ? darkenColor(color, 20) : "#9CA3AF"}
+                                          color={itemDone ? darkenColor(color, 20) : theme.iconMuted}
                                         />
                                       )}
 
@@ -1519,7 +1631,7 @@ export default function TimelineScreen() {
                                         style={[
                                           styles.checklistText,
                                           {
-                                            color: itemDone ? darkenColor(color, 10) : "#CBD5E1",
+                                            color: itemDone ? darkenColor(color, 10) : theme.textSecondary,
                                             textDecorationLine: itemDone
                                               ? "line-through"
                                               : "none",
@@ -1565,42 +1677,68 @@ export default function TimelineScreen() {
         animationType="fade"
         onRequestClose={() => setAddCheckpointModalVisible(false)}
       >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>إضافة مرحلة جديدة</Text>
+        <View style={[styles.modalBackdrop, { backgroundColor: theme.modalBackdrop }]}>
+          <View
+            style={[
+              styles.modalCard,
+              { backgroundColor: theme.modalCardBg, borderColor: theme.modalCardBorder },
+            ]}
+          >
+            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>إضافة مرحلة جديدة</Text>
 
             <View style={styles.modalField}>
-              <Text style={styles.modalLabel}>اسم المرحلة</Text>
+              <Text style={[styles.modalLabel, { color: theme.textPrimary }]}>اسم المرحلة</Text>
               <TextInput
-                style={styles.modalInput}
+                style={[
+                  styles.modalInput,
+                  {
+                    borderColor: theme.inputBorder,
+                    backgroundColor: theme.inputBg,
+                    color: theme.inputText,
+                  },
+                ]}
                 value={newCheckpointName}
                 onChangeText={setNewCheckpointName}
                 placeholder="مثال: مراجعة القرآن"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={theme.inputPlaceholder}
                 textAlign="right"
               />
             </View>
 
             <View style={styles.modalRow}>
-              <Text style={styles.modalLabel}>وقت المرحلة</Text>
-              <Pressable style={styles.timeSelectButton} onPress={() => setShowAddCheckpointTimePicker(true)}>
-                <Text style={styles.timeSelectText}>{toArabicDigits(toHHmm(newCheckpointTime))}</Text>
+              <Text style={[styles.modalLabel, { color: theme.textPrimary }]}>وقت المرحلة</Text>
+              <Pressable
+                style={[
+                  styles.timeSelectButton,
+                  { borderColor: theme.inputBorder, backgroundColor: theme.inputBg },
+                ]}
+                onPress={() => setShowAddCheckpointTimePicker(true)}
+              >
+                <Text style={[styles.timeSelectText, { color: theme.inputText }]}>
+                  {toArabicDigits(toHHmm(newCheckpointTime))}
+                </Text>
               </Pressable>
             </View>
 
             <View style={styles.modalField}>
-              <Text style={styles.modalLabel}>نوع التكرار</Text>
+              <Text style={[styles.modalLabel, { color: theme.textPrimary }]}>نوع التكرار</Text>
               <View style={styles.repeatModeRow}>
                 {REPEAT_MODE_OPTIONS.map((option) => (
                   <Pressable
                     key={option.value}
                     style={[
                       styles.repeatModeButton,
+                      {
+                        borderColor: theme.inputBorder,
+                        backgroundColor: theme.inputBg,
+                      },
                       newCheckpointRepeat === option.value && styles.repeatModeButtonActive,
                     ]}
                     onPress={() => setNewCheckpointRepeat(option.value)}
                   >
-                    <Text style={styles.repeatModeButtonText}>{option.label}</Text>
+                    <Text style={[styles.repeatModeButtonText, { color: theme.textPrimary }]}>
+                      {option.label}
+                    </Text>
                   </Pressable>
                 ))}
               </View>
@@ -1611,11 +1749,17 @@ export default function TimelineScreen() {
                       key={`cp-${day.value}`}
                       style={[
                         styles.repeatDayChip,
+                        {
+                          borderColor: theme.inputBorder,
+                          backgroundColor: theme.inputBg,
+                        },
                         newCheckpointRepeatDays.includes(day.value) && styles.repeatDayChipActive,
                       ]}
                       onPress={() => toggleWeekday(day.value, setNewCheckpointRepeatDays)}
                     >
-                      <Text style={styles.repeatDayChipText}>{day.label}</Text>
+                      <Text style={[styles.repeatDayChipText, { color: theme.textPrimary }]}>
+                        {day.label}
+                      </Text>
                     </Pressable>
                   ))}
                 </View>
@@ -1633,10 +1777,10 @@ export default function TimelineScreen() {
 
             <View style={styles.modalActions}>
               <Pressable
-                style={[styles.modalButton, styles.modalCancel]}
+                style={[styles.modalButton, styles.modalCancel, { borderColor: theme.inputBorder }]}
                 onPress={() => setAddCheckpointModalVisible(false)}
               >
-                <Text style={styles.modalCancelText}>إلغاء</Text>
+                <Text style={[styles.modalCancelText, { color: theme.textPrimary }]}>إلغاء</Text>
               </Pressable>
               <Pressable
                 style={[styles.modalButton, styles.modalSave, savingCrud && { opacity: 0.65 }]}
@@ -1656,51 +1800,76 @@ export default function TimelineScreen() {
         animationType="fade"
         onRequestClose={() => setAddTaskModalVisible(false)}
       >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>إضافة مهمة جديدة</Text>
-            <Text style={styles.modalTaskName} numberOfLines={2}>
+        <View style={[styles.modalBackdrop, { backgroundColor: theme.modalBackdrop }]}>
+          <View
+            style={[
+              styles.modalCard,
+              { backgroundColor: theme.modalCardBg, borderColor: theme.modalCardBorder },
+            ]}
+          >
+            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>إضافة مهمة جديدة</Text>
+            <Text style={[styles.modalTaskName, { color: theme.textSecondary }]} numberOfLines={2}>
               {addTaskCheckpointTarget?.name ?? ""}
             </Text>
 
             <View style={styles.modalField}>
-              <Text style={styles.modalLabel}>اسم المهمة</Text>
+              <Text style={[styles.modalLabel, { color: theme.textPrimary }]}>اسم المهمة</Text>
               <TextInput
-                style={styles.modalInput}
+                style={[
+                  styles.modalInput,
+                  {
+                    borderColor: theme.inputBorder,
+                    backgroundColor: theme.inputBg,
+                    color: theme.inputText,
+                  },
+                ]}
                 value={newTaskName}
                 onChangeText={setNewTaskName}
                 placeholder="مثال: جلسة ذكر"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={theme.inputPlaceholder}
                 textAlign="right"
               />
             </View>
 
             <View style={styles.modalField}>
-              <Text style={styles.modalLabel}>النقاط (اختياري)</Text>
+              <Text style={[styles.modalLabel, { color: theme.textPrimary }]}>النقاط (اختياري)</Text>
               <TextInput
-                style={styles.modalInput}
+                style={[
+                  styles.modalInput,
+                  {
+                    borderColor: theme.inputBorder,
+                    backgroundColor: theme.inputBg,
+                    color: theme.inputText,
+                  },
+                ]}
                 value={newTaskPoints}
                 onChangeText={setNewTaskPoints}
                 keyboardType="numeric"
                 placeholder="0"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={theme.inputPlaceholder}
                 textAlign="right"
               />
             </View>
 
             <View style={styles.modalField}>
-              <Text style={styles.modalLabel}>نوع التكرار</Text>
+              <Text style={[styles.modalLabel, { color: theme.textPrimary }]}>نوع التكرار</Text>
               <View style={styles.repeatModeRow}>
                 {REPEAT_MODE_OPTIONS.map((option) => (
                   <Pressable
                     key={`task-repeat-${option.value}`}
                     style={[
                       styles.repeatModeButton,
+                      {
+                        borderColor: theme.inputBorder,
+                        backgroundColor: theme.inputBg,
+                      },
                       newTaskRepeat === option.value && styles.repeatModeButtonActive,
                     ]}
                     onPress={() => setNewTaskRepeat(option.value)}
                   >
-                    <Text style={styles.repeatModeButtonText}>{option.label}</Text>
+                    <Text style={[styles.repeatModeButtonText, { color: theme.textPrimary }]}>
+                      {option.label}
+                    </Text>
                   </Pressable>
                 ))}
               </View>
@@ -1711,11 +1880,17 @@ export default function TimelineScreen() {
                       key={`task-${day.value}`}
                       style={[
                         styles.repeatDayChip,
+                        {
+                          borderColor: theme.inputBorder,
+                          backgroundColor: theme.inputBg,
+                        },
                         newTaskRepeatDays.includes(day.value) && styles.repeatDayChipActive,
                       ]}
                       onPress={() => toggleWeekday(day.value, setNewTaskRepeatDays)}
                     >
-                      <Text style={styles.repeatDayChipText}>{day.label}</Text>
+                      <Text style={[styles.repeatDayChipText, { color: theme.textPrimary }]}>
+                        {day.label}
+                      </Text>
                     </Pressable>
                   ))}
                 </View>
@@ -1723,18 +1898,20 @@ export default function TimelineScreen() {
             </View>
 
             <View style={styles.modalHintRow}>
-              <Text style={styles.modalHintText}>سيتم تعيين وقت المهمة تلقائياً من وقت المرحلة</Text>
+              <Text style={[styles.modalHintText, { color: theme.textMuted }]}>
+                سيتم تعيين وقت المهمة تلقائياً من وقت المرحلة
+              </Text>
             </View>
 
             <View style={styles.modalActions}>
               <Pressable
-                style={[styles.modalButton, styles.modalCancel]}
+                style={[styles.modalButton, styles.modalCancel, { borderColor: theme.inputBorder }]}
                 onPress={() => {
                   setAddTaskModalVisible(false);
                   setAddTaskCheckpointTarget(null);
                 }}
               >
-                <Text style={styles.modalCancelText}>إلغاء</Text>
+                <Text style={[styles.modalCancelText, { color: theme.textPrimary }]}>إلغاء</Text>
               </Pressable>
               <Pressable
                 style={[styles.modalButton, styles.modalSave, savingCrud && { opacity: 0.65 }]}
@@ -1754,51 +1931,76 @@ export default function TimelineScreen() {
         animationType="fade"
         onRequestClose={() => setNotificationModalVisible(false)}
       >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>إعدادات التنبيه</Text>
-            <Text style={styles.modalTaskName} numberOfLines={2}>
+        <View style={[styles.modalBackdrop, { backgroundColor: theme.modalBackdrop }]}>
+          <View
+            style={[
+              styles.modalCard,
+              { backgroundColor: theme.modalCardBg, borderColor: theme.modalCardBorder },
+            ]}
+          >
+            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>إعدادات التنبيه</Text>
+            <Text style={[styles.modalTaskName, { color: theme.textSecondary }]} numberOfLines={2}>
               {selectedNotificationTarget?.itemName ?? ""}
             </Text>
 
             <View style={styles.modalRow}>
-              <Text style={styles.modalLabel}>تفعيل التنبيه</Text>
+              <Text style={[styles.modalLabel, { color: theme.textPrimary }]}>تفعيل التنبيه</Text>
               <Switch value={notificationsEnabled} onValueChange={setNotificationsEnabled} />
             </View>
 
             <View style={styles.modalRow}>
-              <Text style={styles.modalLabel}>وقت التنبيه</Text>
+              <Text style={[styles.modalLabel, { color: theme.textPrimary }]}>وقت التنبيه</Text>
               <Pressable
-                style={styles.timeSelectButton}
+                style={[
+                  styles.timeSelectButton,
+                  { borderColor: theme.inputBorder, backgroundColor: theme.inputBg },
+                ]}
                 onPress={() => setShowTimePicker(true)}
                 disabled={!notificationsEnabled}
               >
-                <Text style={styles.timeSelectText}>{toArabicDigits(toHHmm(notificationTime))}</Text>
+                <Text style={[styles.timeSelectText, { color: theme.inputText }]}>
+                  {toArabicDigits(toHHmm(notificationTime))}
+                </Text>
               </Pressable>
             </View>
 
             {!isDefaultTaskModal && (
               <>
                 <View style={styles.modalField}>
-                  <Text style={styles.modalLabel}>عنوان التنبيه</Text>
+                  <Text style={[styles.modalLabel, { color: theme.textPrimary }]}>عنوان التنبيه</Text>
                   <TextInput
-                    style={styles.modalInput}
+                    style={[
+                      styles.modalInput,
+                      {
+                        borderColor: theme.inputBorder,
+                        backgroundColor: theme.inputBg,
+                        color: theme.inputText,
+                      },
+                    ]}
                     value={notificationTitle}
                     onChangeText={setNotificationTitle}
                     placeholder="تذكير: اسم المهمة"
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={theme.inputPlaceholder}
                     textAlign="right"
                   />
                 </View>
 
                 <View style={styles.modalField}>
-                  <Text style={styles.modalLabel}>نص التنبيه</Text>
+                  <Text style={[styles.modalLabel, { color: theme.textPrimary }]}>نص التنبيه</Text>
                   <TextInput
-                    style={[styles.modalInput, styles.modalInputMultiline]}
+                    style={[
+                      styles.modalInput,
+                      styles.modalInputMultiline,
+                      {
+                        borderColor: theme.inputBorder,
+                        backgroundColor: theme.inputBg,
+                        color: theme.inputText,
+                      },
+                    ]}
                     value={notificationText}
                     onChangeText={setNotificationText}
                     placeholder="حان وقت ..."
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={theme.inputPlaceholder}
                     textAlign="right"
                     multiline
                   />
@@ -1817,13 +2019,13 @@ export default function TimelineScreen() {
 
             <View style={styles.modalActions}>
               <Pressable
-                style={[styles.modalButton, styles.modalCancel]}
+                style={[styles.modalButton, styles.modalCancel, { borderColor: theme.inputBorder }]}
                 onPress={() => {
                   setNotificationModalVisible(false);
                   setSelectedNotificationTarget(null);
                 }}
               >
-                <Text style={styles.modalCancelText}>إلغاء</Text>
+                <Text style={[styles.modalCancelText, { color: theme.textPrimary }]}>إلغاء</Text>
               </Pressable>
               <Pressable
                 style={[
@@ -1962,6 +2164,11 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 8,
+  },
+  headerActionRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
     gap: 8,
   },
   dateCluster: {
@@ -2350,6 +2557,16 @@ const styles = StyleSheet.create({
     color: "#F3F4F6",
     fontSize: 14,
     fontWeight: "700",
+    fontFamily: FONTS.semiBold,
+  },
+  themeToggleButton: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  themeToggleText: {
+    fontSize: 12,
     fontFamily: FONTS.semiBold,
   },
   modalActions: {

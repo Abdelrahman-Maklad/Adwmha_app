@@ -106,7 +106,7 @@ export default function QuranReferenceScreen({ route, navigation }: Props) {
 
   return (
     <ImageBackground
-      source={require("../assets/islamic ornament background.png")}
+      source={require("../assets/islamic ornament background-dark theme.png")}
       style={styles.screen}
       resizeMode="cover"
     >

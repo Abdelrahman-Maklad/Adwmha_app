@@ -2,6 +2,12 @@ import React, { useEffect, useRef } from "react";
 import { Animated, Image, ImageBackground, StyleSheet, useColorScheme, View } from "react-native";
 import { useFonts } from "expo-font";
 import { FONT_FAMILY, resolveArabicTextFont } from "./constants/fonts";
+import {
+  getThemeTokens,
+  resolveThemePreference,
+  ThemePreference,
+} from "./constants/theme";
+import { getThemePreference } from "./db/queries";
 
 export default function StartScreen() {
   const [fontsLoaded, fontLoadError] = useFonts({
@@ -20,7 +26,23 @@ export default function StartScreen() {
   const dot3Opacity = useRef(new Animated.Value(0.3)).current;
   const dotsLoopRef = useRef<Animated.CompositeAnimation | null>(null);
   const colorScheme = useColorScheme();
-  const isDark = colorScheme !== "light";
+  const [themePreference, setThemePreferenceState] = React.useState<ThemePreference>("system");
+
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        const pref = await getThemePreference();
+        if (mounted) setThemePreferenceState(pref);
+      } catch {}
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const resolvedTheme = resolveThemePreference(themePreference, colorScheme);
+  const theme = getThemeTokens(resolvedTheme);
 
   useEffect(() => {
     Animated.parallel([
@@ -93,12 +115,12 @@ export default function StartScreen() {
 
   return (
     <ImageBackground
-      source={require("./assets/islamic ornament background.png")}
-      style={styles.screen}
+      source={theme.backgroundImage}
+      style={[styles.screen, { backgroundColor: theme.screenBackground }]}
       imageStyle={{ transform: [{ scale: 1.1 }] }}
       resizeMode="cover"
     >
-      <View style={styles.overlay} />
+      <View style={[styles.overlay, { backgroundColor: theme.overlayColor }]} />
       <View style={styles.content}>
         <Animated.View
           style={{
@@ -108,9 +130,9 @@ export default function StartScreen() {
         >
           <Image
             source={
-              isDark
-                ? require("./assets/logo-white.png")
-                : require("./assets/logo-gradient.png")
+              resolvedTheme === "dark"
+                ? require("./assets/logo-white-dark-theme.png")
+                : require("./assets/logo-gradient-lightheme.png")
             }
             style={styles.logo}
             resizeMode="contain"
@@ -122,7 +144,7 @@ export default function StartScreen() {
             styles.phraseText,
             {
               fontFamily: phraseFontFamily,
-              color: isDark ? "#F3F4F6" : "#0F172A",
+              color: theme.textPrimary,
               opacity: phraseOpacity,
               transform: [{ translateY: phraseTranslateY }],
             },
@@ -135,19 +157,19 @@ export default function StartScreen() {
           <Animated.View
             style={[
               styles.dot,
-              { backgroundColor: isDark ? "#E5E7EB" : "#1F2937", opacity: dot1Opacity },
+              { backgroundColor: theme.iconPrimary, opacity: dot1Opacity },
             ]}
           />
           <Animated.View
             style={[
               styles.dot,
-              { backgroundColor: isDark ? "#E5E7EB" : "#1F2937", opacity: dot2Opacity },
+              { backgroundColor: theme.iconPrimary, opacity: dot2Opacity },
             ]}
           />
           <Animated.View
             style={[
               styles.dot,
-              { backgroundColor: isDark ? "#E5E7EB" : "#1F2937", opacity: dot3Opacity },
+              { backgroundColor: theme.iconPrimary, opacity: dot3Opacity },
             ]}
           />
         </View>
@@ -163,7 +185,6 @@ const styles = StyleSheet.create({
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(10,14,26,0.78)",
   },
   content: {
     flex: 1,

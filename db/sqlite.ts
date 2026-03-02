@@ -98,6 +98,13 @@ export async function getDb() {
     );
   `);
 
+    await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY NOT NULL,
+      value TEXT NOT NULL
+    );
+  `);
+
     _db = db;
     return db;
   })();

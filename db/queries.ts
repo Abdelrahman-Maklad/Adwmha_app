@@ -1,5 +1,6 @@
 // db/queries.ts
 import { getDb } from "./sqlite";
+type ThemePreference = "system" | "light" | "dark";
 
 function normalizeArabicDayName(day: string): string {
   return day
@@ -379,4 +380,33 @@ export async function deleteTaskFromCheckpoint(params: {
   );
 
   return { checkpoint: nextCheckpoint };
+}
+
+export async function getAppSetting(key: string): Promise<string | null> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM app_settings WHERE key = ?;",
+    [key]
+  );
+  return row?.value ?? null;
+}
+
+export async function setAppSetting(key: string, value: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?);",
+    [key, value]
+  );
+}
+
+const THEME_PREF_KEY = "theme_preference";
+
+export async function getThemePreference(): Promise<ThemePreference> {
+  const raw = await getAppSetting(THEME_PREF_KEY);
+  if (raw === "light" || raw === "dark" || raw === "system") return raw;
+  return "system";
+}
+
+export async function setThemePreference(value: ThemePreference): Promise<void> {
+  await setAppSetting(THEME_PREF_KEY, value);
 }
