@@ -9,7 +9,6 @@ import {
   LayoutChangeEvent,
   Image,
   ImageBackground,
-  useColorScheme,
   Modal,
   Switch,
   Alert,
@@ -58,7 +57,6 @@ import { FONT_FAMILY } from "./constants/fonts";
 import {
   ThemePreference,
   cycleThemePreference,
-  getThemePreferenceLabel,
   getThemeTokens,
   resolveThemePreference,
 } from "./constants/theme";
@@ -202,18 +200,16 @@ function CalendarHeader({
   locationLabel,
   totalPoints,
   theme,
-  themePreference,
   resolvedTheme,
-  onCycleTheme,
+  onToggleTheme,
   onReturnToToday,
 }: {
   dateInfo: DateInfo | null;
   locationLabel: string;
   totalPoints: number;
   theme: ReturnType<typeof getThemeTokens>;
-  themePreference: ThemePreference;
   resolvedTheme: "light" | "dark";
-  onCycleTheme: () => void;
+  onToggleTheme: () => void;
   onReturnToToday: () => void;
 }) {
   return (
@@ -222,7 +218,7 @@ function CalendarHeader({
         <View style={styles.topRowRight}>
           <Image
             source={
-              themePreference === "dark" || (themePreference === "system" && resolvedTheme === "dark")
+              resolvedTheme === "dark"
                 ? require("./assets/logo-white-dark-theme.png")
                 : require("./assets/logo-gradient-lightheme.png")
             }
@@ -232,11 +228,26 @@ function CalendarHeader({
         </View>
 
         <View style={styles.topRowLeft}>
-          <View style={[styles.locationPill, { backgroundColor: theme.locationPillBg }]}>
+          <View style={styles.locationWrap}>
+            <Pressable
+              style={[
+                styles.themeIconButton,
+                { backgroundColor: theme.dayCardBg, borderColor: theme.dayCardBorder },
+              ]}
+              onPress={onToggleTheme}
+            >
+              {resolvedTheme === "dark" ? (
+                <Sun size={16} color={theme.iconPrimary} />
+              ) : (
+                <Moon size={16} color={theme.iconPrimary} />
+              )}
+            </Pressable>
+            <View style={[styles.locationPill, { backgroundColor: theme.locationPillBg }]}>
             <MapPin size={14} color={theme.locationPillText} />
             <Text style={[styles.locationText, { color: theme.locationPillText }]} numberOfLines={1}>
               {locationLabel}
             </Text>
+            </View>
           </View>
         </View>
       </View>
@@ -260,17 +271,6 @@ function CalendarHeader({
         </View>
 
         <View style={styles.headerActionRow}>
-          <Pressable
-            style={[
-              styles.themeToggleButton,
-              { backgroundColor: theme.dayCardBg, borderColor: theme.dayCardBorder },
-            ]}
-            onPress={onCycleTheme}
-          >
-            <Text style={[styles.themeToggleText, { color: theme.textSecondary }]}>
-              {getThemePreferenceLabel(themePreference)}
-            </Text>
-          </Pressable>
           <Pressable
             style={[
               styles.calendarIconWrap,
@@ -486,12 +486,11 @@ export default function TimelineScreen() {
     name: string;
   } | null>(null);
   const [savingCrud, setSavingCrud] = useState(false);
-  const [themePreference, setThemePreferenceState] = useState<ThemePreference>("system");
+  const [themePreference, setThemePreferenceState] = useState<ThemePreference>("dark");
   const dayCardsListRef = useRef<FlatList<HijriMonthDayCard> | null>(null);
   const pendingDayScrollIndexRef = useRef<number | null>(null);
 
-  const colorScheme = useColorScheme();
-  const resolvedTheme = resolveThemePreference(themePreference, colorScheme);
+  const resolvedTheme = resolveThemePreference(themePreference);
   const theme = getThemeTokens(resolvedTheme);
 
   useEffect(() => {
@@ -507,7 +506,7 @@ export default function TimelineScreen() {
     };
   }, []);
 
-  const handleCycleTheme = () => {
+  const handleToggleTheme = () => {
     const next = cycleThemePreference(themePreference);
     setThemePreferenceState(next);
     void saveThemePreference(next);
@@ -1258,9 +1257,8 @@ export default function TimelineScreen() {
           locationLabel={locationLabel}
           totalPoints={totalPoints}
           theme={theme}
-          themePreference={themePreference}
           resolvedTheme={resolvedTheme}
-          onCycleTheme={handleCycleTheme}
+          onToggleTheme={handleToggleTheme}
           onReturnToToday={handleReturnToToday}
         />
         <FlatList
@@ -1495,7 +1493,14 @@ export default function TimelineScreen() {
 
                               {redirectTarget && (
                                 <Pressable
-                                  style={[styles.circleActionButton, styles.circleActionRedirect]}
+                                  style={[
+                                    styles.circleActionButton,
+                                    styles.circleActionRedirect,
+                                    {
+                                      borderColor: theme.redirectActionBorder,
+                                      backgroundColor: theme.redirectActionBg,
+                                    },
+                                  ]}
                                   onPress={(event) => {
                                     event.stopPropagation();
                                     if (redirectTarget.kind === "adhkar") {
@@ -1510,7 +1515,7 @@ export default function TimelineScreen() {
                                     });
                                   }}
                                 >
-                                  <ArrowUpRight size={15} color="#BFDBFE" />
+                                  <ArrowUpRight size={15} color={theme.redirectIcon} />
                                 </Pressable>
                               )}
                             </View>
@@ -2097,12 +2102,12 @@ const styles = StyleSheet.create({
     paddingRight: 2,
   },
   dayCard: {
-    minWidth: 74,
-    borderWidth: 1,
+    minWidth: 60,
+    borderWidth: 2,
     borderColor: "rgba(255,255,255,0.15)",
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+    borderRadius: 25,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
     backgroundColor: "rgba(255,255,255,0.04)",
     alignItems: "center",
     justifyContent: "center",
@@ -2117,7 +2122,7 @@ const styles = StyleSheet.create({
   },
   dayCardWeekday: {
     color: "#94A3B8",
-    fontSize: 11,
+    fontSize: 9,
     marginBottom: 4,
     fontFamily: FONTS.regular,
   },
@@ -2126,7 +2131,7 @@ const styles = StyleSheet.create({
   },
   dayCardDay: {
     color: "#F8FAFC",
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "800",
     fontFamily: FONTS.bold,
   },
@@ -2148,6 +2153,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   topRow: {
+    display: "flex",
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
@@ -2158,6 +2164,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   topRowRight: {
+    flex: 1,
     alignItems: "flex-end",
   },
   secondRow: {
@@ -2186,6 +2193,8 @@ const styles = StyleSheet.create({
     borderColor: "rgba(167,180,252,0.35)",
   },
   locationPill: {
+    display: "flex",
+    flex: 1,
     flexDirection: "row-reverse",
     alignItems: "center",
     gap: 6,
@@ -2195,13 +2204,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     maxWidth: "100%",
   },
+  locationWrap: {
+    display: "flex",
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 8,
+    maxWidth: "100%",
+  },
+  themeIconButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   locationText: {
+    flexGrow: 1,
     color: "#E5E7EB",
     fontSize: 12,
     fontWeight: "600",
     fontFamily: FONTS.semiBold,
     textAlign: "right",
-    flexShrink: 1,
   },
   pointsCounter: {
     flexDirection: "row-reverse",
@@ -2348,7 +2372,7 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.25)",
+    borderColor: "rgba(150,150,150,0.25)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -2419,7 +2443,7 @@ const styles = StyleSheet.create({
     height: 16,
     borderRadius: 8,
     borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.25)",
+    borderColor: "rgba(150,150,150,0.25)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -2557,16 +2581,6 @@ const styles = StyleSheet.create({
     color: "#F3F4F6",
     fontSize: 14,
     fontWeight: "700",
-    fontFamily: FONTS.semiBold,
-  },
-  themeToggleButton: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-  },
-  themeToggleText: {
-    fontSize: 12,
     fontFamily: FONTS.semiBold,
   },
   modalActions: {

@@ -1,4 +1,5 @@
 import { AdhkarPriority } from "../db/adhkarTypes";
+import { ResolvedTheme } from "./theme";
 
 export type PriorityColors = {
   cardBackground: string;
@@ -11,7 +12,7 @@ export type PriorityColors = {
   shimmerStops?: string[];
 };
 
-export const ADHKAR_PRIORITY_COLORS: Record<AdhkarPriority, PriorityColors> = {
+const DARK_ADHKAR_PRIORITY_COLORS: Record<AdhkarPriority, PriorityColors> = {
   1: {
     cardBackground: "rgba(212,175,55,0.12)",
     borderColor: "#D4AF37",
@@ -41,3 +42,40 @@ export const ADHKAR_PRIORITY_COLORS: Record<AdhkarPriority, PriorityColors> = {
     completionOverlay: "rgba(10,14,26,0.34)",
   },
 };
+
+const LIGHT_ADHKAR_PRIORITY_COLORS: Record<AdhkarPriority, PriorityColors> = {
+  1: {
+    cardBackground: "rgba(212,175,55,0.16)",
+    borderColor: "#B8860B",
+    textColor: "#1F2937",
+    badgeBackground: "rgba(180,83,9,0.14)",
+    badgeText: "#92400E",
+    counterText: "#92400E",
+    completionOverlay: "rgba(255,255,255,0.44)",
+    shimmerStops: ["rgba(180,83,9,0.00)", "rgba(234,179,8,0.20)", "rgba(180,83,9,0.00)"],
+  },
+  2: {
+    cardBackground: "rgba(34,197,94,0.12)",
+    borderColor: "#15803D",
+    textColor: "#1E293B",
+    badgeBackground: "rgba(34,197,94,0.16)",
+    badgeText: "#166534",
+    counterText: "#166534",
+    completionOverlay: "rgba(255,255,255,0.42)",
+  },
+  3: {
+    cardBackground: "rgba(148,163,184,0.16)",
+    borderColor: "rgba(71,85,105,0.45)",
+    textColor: "#334155",
+    badgeBackground: "rgba(148,163,184,0.20)",
+    badgeText: "#334155",
+    counterText: "#334155",
+    completionOverlay: "rgba(255,255,255,0.40)",
+  },
+};
+
+export function getAdhkarPriorityColors(theme: ResolvedTheme, priority: AdhkarPriority): PriorityColors {
+  if (theme === "light") return LIGHT_ADHKAR_PRIORITY_COLORS[priority];
+  return DARK_ADHKAR_PRIORITY_COLORS[priority];
+}
+

@@ -14,6 +14,8 @@ import { AdhkarSetDoc } from "../db/adhkarTypes";
 import AdhkarCard from "../components/AdhkarCard";
 import { RootStackParamList } from "../navigation/types";
 import { FONT_FAMILY } from "../constants/fonts";
+import { getThemePreference } from "../db/queries";
+import { getThemeTokens, resolveThemePreference, ThemePreference } from "../constants/theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "AdhkarDetails">;
 
@@ -22,6 +24,9 @@ export default function AdhkarDetailsScreen({ route, navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [themePreference, setThemePreferenceState] = useState<ThemePreference>("dark");
+  const resolvedTheme = resolveThemePreference(themePreference);
+  const theme = getThemeTokens(resolvedTheme);
 
   const [fontsLoaded, fontLoadError] = useFonts({
     [FONT_FAMILY.cairoRegular]: require("../assets/fonts/Cairo-Regular.ttf"),
@@ -33,6 +38,19 @@ export default function AdhkarDetailsScreen({ route, navigation }: Props) {
   const fontReady = fontsLoaded || Boolean(fontLoadError);
 
   useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        const pref = await getThemePreference();
+        if (mounted) setThemePreferenceState(pref);
+      } catch {}
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (__DEV__ && fontLoadError) {
       console.warn("[AdhkarDetailsScreen] Hafs font failed to load; using Cairo fallback.", fontLoadError);
     }
@@ -41,8 +59,11 @@ export default function AdhkarDetailsScreen({ route, navigation }: Props) {
   useEffect(() => {
     navigation.setOptions({
       title: doc?.title_ar ?? "تفاصيل الأذكار",
+      headerStyle: { backgroundColor: theme.topBarBackground },
+      headerTintColor: theme.textPrimary,
+      headerTitleStyle: { color: theme.textPrimary },
     });
-  }, [doc?.title_ar, navigation]);
+  }, [doc?.title_ar, navigation, theme.textPrimary, theme.topBarBackground]);
 
   useEffect(() => {
     let mounted = true;
@@ -99,20 +120,20 @@ export default function AdhkarDetailsScreen({ route, navigation }: Props) {
 
   return (
     <ImageBackground
-      source={require("../assets/islamic ornament background-dark theme.png")}
-      style={styles.screen}
+      source={theme.backgroundImage}
+      style={[styles.screen, { backgroundColor: theme.screenBackground }]}
       imageStyle={{ transform: [{ scale: 1.5 }, { translateX: -20 }] }}
       resizeMode="cover"
     >
-      <View style={styles.backgroundOverlay} />
+      <View style={[styles.backgroundOverlay, { backgroundColor: theme.overlayColor }]} />
 
       {loading || !fontReady ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#E5E7EB" />
+          <ActivityIndicator size="large" color={theme.textPrimary} />
         </View>
       ) : error ? (
         <View style={styles.centered}>
-          <Text style={styles.errorText}>{error}</Text>
+          <Text style={[styles.errorText, { color: "#DC2626" }]}>{error}</Text>
         </View>
       ) : (
         <FlatList
@@ -127,41 +148,42 @@ export default function AdhkarDetailsScreen({ route, navigation }: Props) {
             const isQuran = item.content_type === "quran" && Boolean(item.quran);
 
             return (
-            <AdhkarCard
-              item={item}
-              currentCount={currentCount}
-              onCardPress={() =>
-                setCounts((prev) => ({
-                  ...prev,
-                  [item.id]:
-                    Math.max(0, prev[item.id] ?? 0) >= repeat
-                      ? Math.max(0, prev[item.id] ?? 0)
-                      : Math.max(0, prev[item.id] ?? 0) + 1,
-                }))
-              }
-              isCompleted={isCompleted}
-              isDisabled={isCompleted}
-              isQuranContent={isQuran}
-              quranAyahNumber={isQuran && item.quran?.mode === "single" ? item.quran?.ayah : undefined}
-              hasHafsFont={hasHafsFont}
-              onOpenQuran={
-                isQuran
-                  ? () => {
-                      if (!item.quran) return;
-                      navigation.navigate("QuranReference", {
-                        titleAr: item.text_ar,
-                        quran: {
-                          surah: item.quran.surah,
-                          mode: item.quran.mode,
-                          ayah: item.quran.ayah,
-                          from: item.quran.from,
-                          to: item.quran.to,
-                        },
-                      });
-                    }
-                  : undefined
-              }
-            />
+              <AdhkarCard
+                item={item}
+                currentCount={currentCount}
+                onCardPress={() =>
+                  setCounts((prev) => ({
+                    ...prev,
+                    [item.id]:
+                      Math.max(0, prev[item.id] ?? 0) >= repeat
+                        ? Math.max(0, prev[item.id] ?? 0)
+                        : Math.max(0, prev[item.id] ?? 0) + 1,
+                  }))
+                }
+                isCompleted={isCompleted}
+                isDisabled={isCompleted}
+                isQuranContent={isQuran}
+                quranAyahNumber={isQuran && item.quran?.mode === "single" ? item.quran?.ayah : undefined}
+                hasHafsFont={hasHafsFont}
+                resolvedTheme={resolvedTheme}
+                onOpenQuran={
+                  isQuran
+                    ? () => {
+                        if (!item.quran) return;
+                        navigation.navigate("QuranReference", {
+                          titleAr: item.text_ar,
+                          quran: {
+                            surah: item.quran.surah,
+                            mode: item.quran.mode,
+                            ayah: item.quran.ayah,
+                            from: item.quran.from,
+                            to: item.quran.to,
+                          },
+                        });
+                      }
+                    : undefined
+                }
+              />
             );
           }}
         />
@@ -177,7 +199,6 @@ const styles = StyleSheet.create({
   },
   backgroundOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(10,14,26,0.82)",
   },
   list: {
     flex: 1,
@@ -195,9 +216,9 @@ const styles = StyleSheet.create({
   },
   errorText: {
     textAlign: "center",
-    color: "#FCA5A5",
     fontSize: 16,
     fontFamily: FONT_FAMILY.cairoSemiBold,
     writingDirection: "rtl",
   },
 });
+

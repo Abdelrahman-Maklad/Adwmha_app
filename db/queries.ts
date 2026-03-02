@@ -1,6 +1,6 @@
 // db/queries.ts
 import { getDb } from "./sqlite";
-type ThemePreference = "system" | "light" | "dark";
+type ThemePreference = "light" | "dark";
 
 function normalizeArabicDayName(day: string): string {
   return day
@@ -403,8 +403,8 @@ const THEME_PREF_KEY = "theme_preference";
 
 export async function getThemePreference(): Promise<ThemePreference> {
   const raw = await getAppSetting(THEME_PREF_KEY);
-  if (raw === "light" || raw === "dark" || raw === "system") return raw;
-  return "system";
+  if (raw === "light" || raw === "dark") return raw;
+  return "dark";
 }
 
 export async function setThemePreference(value: ThemePreference): Promise<void> {

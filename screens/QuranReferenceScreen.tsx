@@ -7,11 +7,12 @@ import { fetchQuranByRouteParams } from "../db/quranRepository";
 import { QuranAyahViewModel } from "../db/quranTypes";
 import { RootStackParamList } from "../navigation/types";
 import { formatAyahMarker } from "../utils/ayahMarker";
+import { getThemePreference } from "../db/queries";
+import { getThemeTokens, resolveThemePreference, ThemePreference } from "../constants/theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "QuranReference">;
-const BASMALA_PLAIN = "\u0628\u0633\u0645 \u0627\u0644\u0644\u0647 \u0627\u0644\u0631\u062d\u0645\u0646 \u0627\u0644\u0631\u062d\u064a\u0645";
-const BASMALA_TASHKEEL =
-  "\u0628\u0650\u0633\u0652\u0645\u0650 \u0627\u0644\u0644\u0651\u064e\u0647\u0650 \u0627\u0644\u0631\u0651\u064e\u062d\u0652\u0645\u064e\u0670\u0646\u0650 \u0627\u0644\u0631\u0651\u064e\u062d\u0650\u064a\u0645\u0650";
+const BASMALA_PLAIN = "بسم الله الرحمن الرحيم";
+const BASMALA_TASHKEEL = "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ";
 
 function stripLeadingBasmala(text: string) {
   const trimmed = String(text ?? "").trim();
@@ -26,6 +27,9 @@ export default function QuranReferenceScreen({ route, navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [ayat, setAyat] = useState<QuranAyahViewModel[]>([]);
+  const [themePreference, setThemePreferenceState] = useState<ThemePreference>("dark");
+  const resolvedTheme = resolveThemePreference(themePreference);
+  const theme = getThemeTokens(resolvedTheme);
 
   const [fontsLoaded, fontLoadError] = useFonts({
     [FONT_FAMILY.cairoRegular]: require("../assets/fonts/Cairo-Regular.ttf"),
@@ -36,10 +40,26 @@ export default function QuranReferenceScreen({ route, navigation }: Props) {
   const fontReady = fontsLoaded || Boolean(fontLoadError);
 
   useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        const pref = await getThemePreference();
+        if (mounted) setThemePreferenceState(pref);
+      } catch {}
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
     navigation.setOptions({
       title: titleAr || "عرض الآيات",
+      headerStyle: { backgroundColor: theme.topBarBackground },
+      headerTintColor: theme.textPrimary,
+      headerTitleStyle: { color: theme.textPrimary },
     });
-  }, [navigation, titleAr]);
+  }, [navigation, titleAr, theme.textPrimary, theme.topBarBackground]);
 
   useEffect(() => {
     if (__DEV__ && fontLoadError) {
@@ -106,31 +126,37 @@ export default function QuranReferenceScreen({ route, navigation }: Props) {
 
   return (
     <ImageBackground
-      source={require("../assets/islamic ornament background-dark theme.png")}
-      style={styles.screen}
+      source={theme.backgroundImage}
+      style={[styles.screen, { backgroundColor: theme.screenBackground }]}
       resizeMode="cover"
     >
-      <View style={styles.overlay} />
+      <View style={[styles.overlay, { backgroundColor: theme.overlayColor }]} />
 
       {!fontReady || loading ? (
         <View style={styles.centerState}>
-          <ActivityIndicator color="#E5E7EB" />
-            <Text style={styles.stateText}>جاري تحميل الآيات...</Text>
+          <ActivityIndicator color={theme.textPrimary} />
+          <Text style={[styles.stateText, { color: theme.textSecondary }]}>جاري تحميل الآيات...</Text>
         </View>
       ) : error ? (
         <View style={styles.centerState}>
-          <Text style={styles.errorText}>{error}</Text>
+          <Text style={[styles.errorText, { color: "#DC2626" }]}>{error}</Text>
         </View>
       ) : ayat.length === 0 ? (
         <View style={styles.centerState}>
-            <Text style={styles.stateText}>لا توجد آيات مطابقة للمعايير المحددة.</Text>
+          <Text style={[styles.stateText, { color: theme.textSecondary }]}>
+            لا توجد آيات مطابقة للمعايير المحددة.
+          </Text>
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.previewContent}>
           {showBasmalaHeader && (
-            <Text style={[styles.basmalaText, { fontFamily: verseFontFamily }]}>{BASMALA_TASHKEEL}</Text>
+            <Text style={[styles.basmalaText, { fontFamily: verseFontFamily, color: theme.textPrimary }]}>
+              {BASMALA_TASHKEEL}
+            </Text>
           )}
-          <Text style={[styles.previewText, { fontFamily: verseFontFamily }]}>{fullSurahPreview}</Text>
+          <Text style={[styles.previewText, { fontFamily: verseFontFamily, color: theme.textSecondary }]}>
+            {fullSurahPreview}
+          </Text>
         </ScrollView>
       )}
     </ImageBackground>
@@ -144,7 +170,6 @@ const styles = StyleSheet.create({
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(10,14,26,0.82)",
   },
   centerState: {
     flex: 1,
@@ -153,13 +178,11 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   stateText: {
-    color: "#CBD5E1",
     fontSize: 14,
     textAlign: "center",
     fontFamily: FONT_FAMILY.cairoRegular,
   },
   errorText: {
-    color: "#FCA5A5",
     fontSize: 14,
     textAlign: "center",
     lineHeight: 22,
@@ -173,7 +196,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   basmalaText: {
-    color: "#F8FAFC",
     textAlign: "center",
     writingDirection: "rtl",
     fontSize: 20,
@@ -181,7 +203,6 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   previewText: {
-    color: "#E2E8F0",
     textAlign: "right",
     writingDirection: "rtl",
     fontSize: 25,
@@ -189,3 +210,4 @@ const styles = StyleSheet.create({
     fontFamily: FONT_FAMILY.cairoRegular,
   },
 });
+

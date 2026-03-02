@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, Image, ImageBackground, StyleSheet, useColorScheme, View } from "react-native";
+import { Animated, Image, ImageBackground, StyleSheet, View } from "react-native";
 import { useFonts } from "expo-font";
 import { FONT_FAMILY, resolveArabicTextFont } from "./constants/fonts";
 import {
@@ -25,8 +25,7 @@ export default function StartScreen() {
   const dot2Opacity = useRef(new Animated.Value(0.3)).current;
   const dot3Opacity = useRef(new Animated.Value(0.3)).current;
   const dotsLoopRef = useRef<Animated.CompositeAnimation | null>(null);
-  const colorScheme = useColorScheme();
-  const [themePreference, setThemePreferenceState] = React.useState<ThemePreference>("system");
+  const [themePreference, setThemePreferenceState] = React.useState<ThemePreference>("dark");
 
   useEffect(() => {
     let mounted = true;
@@ -41,7 +40,7 @@ export default function StartScreen() {
     };
   }, []);
 
-  const resolvedTheme = resolveThemePreference(themePreference, colorScheme);
+  const resolvedTheme = resolveThemePreference(themePreference);
   const theme = getThemeTokens(resolvedTheme);
 
   useEffect(() => {

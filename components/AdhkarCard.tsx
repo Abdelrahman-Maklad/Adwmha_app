@@ -3,9 +3,10 @@ import { Animated, LayoutChangeEvent, Pressable, StyleSheet, Text, View } from "
 import { LinearGradient } from "expo-linear-gradient";
 import { Check } from "lucide-react-native";
 import { AdhkarItem } from "../db/adhkarTypes";
-import { ADHKAR_PRIORITY_COLORS } from "../constants/adhkarColors";
+import { getAdhkarPriorityColors } from "../constants/adhkarColors";
 import { FONT_FAMILY, resolveArabicTextFont } from "../constants/fonts";
 import { formatAyahMarker } from "../utils/ayahMarker";
+import { ResolvedTheme } from "../constants/theme";
 
 const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient as any);
 
@@ -19,6 +20,7 @@ type Props = {
   quranAyahNumber?: number;
   hasHafsFont?: boolean;
   onOpenQuran?: () => void;
+  resolvedTheme?: ResolvedTheme;
 };
 
 export default function AdhkarCard({
@@ -31,8 +33,9 @@ export default function AdhkarCard({
   quranAyahNumber,
   hasHafsFont = false,
   onOpenQuran,
+  resolvedTheme = "dark",
 }: Props) {
-  const colors = ADHKAR_PRIORITY_COLORS[item.priority];
+  const colors = getAdhkarPriorityColors(resolvedTheme, item.priority);
   const [cardWidth, setCardWidth] = useState(0);
   const shimmerX = useRef(new Animated.Value(-240)).current;
   const shimmerLoopRef = useRef<Animated.CompositeAnimation | null>(null);
@@ -127,9 +130,21 @@ export default function AdhkarCard({
               event.stopPropagation();
               onOpenQuran();
             }}
-            style={styles.quranActionButton}
+            style={[
+              styles.quranActionButton,
+              resolvedTheme === "light"
+                ? styles.quranActionButtonLight
+                : styles.quranActionButtonDark,
+            ]}
           >
-            <Text style={styles.quranActionText}>فتح عرض الآيات</Text>
+            <Text
+              style={[
+                styles.quranActionText,
+                resolvedTheme === "light" ? styles.quranActionTextLight : styles.quranActionTextDark,
+              ]}
+            >
+              فتح عرض الآيات
+            </Text>
           </Pressable>
         </View>
       )}
@@ -189,15 +204,26 @@ const styles = StyleSheet.create({
   quranActionButton: {
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "rgba(253,230,138,0.44)",
-    backgroundColor: "rgba(253,230,138,0.12)",
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
+  quranActionButtonDark: {
+    borderColor: "rgba(253,230,138,0.44)",
+    backgroundColor: "rgba(253,230,138,0.12)",
+  },
+  quranActionButtonLight: {
+    borderColor: "rgba(146,64,14,0.42)",
+    backgroundColor: "rgba(245,158,11,0.12)",
+  },
   quranActionText: {
-    color: "#FDE68A",
     fontSize: 13,
     fontFamily: FONT_FAMILY.cairoSemiBold,
+  },
+  quranActionTextDark: {
+    color: "#FDE68A",
+  },
+  quranActionTextLight: {
+    color: "#92400E",
   },
   badge: {
     borderRadius: 999,

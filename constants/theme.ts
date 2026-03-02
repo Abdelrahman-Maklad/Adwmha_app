@@ -1,7 +1,7 @@
-import { ColorSchemeName, ImageSourcePropType } from "react-native";
+import { ImageSourcePropType } from "react-native";
 
-export type ThemePreference = "system" | "light" | "dark";
-export type ResolvedTheme = "light" | "dark";
+export type ThemePreference = "light" | "dark";
+export type ResolvedTheme = ThemePreference;
 
 export type ThemeTokens = {
   backgroundImage: ImageSourcePropType;
@@ -40,26 +40,17 @@ export type ThemeTokens = {
   inputBorder: string;
   inputText: string;
   inputPlaceholder: string;
+  redirectActionBg: string;
+  redirectActionBorder: string;
+  redirectIcon: string;
 };
 
-export function resolveThemePreference(
-  preference: ThemePreference,
-  systemColorScheme: ColorSchemeName
-): ResolvedTheme {
-  if (preference === "light" || preference === "dark") return preference;
-  return systemColorScheme === "light" ? "light" : "dark";
+export function resolveThemePreference(preference: ThemePreference): ResolvedTheme {
+  return preference;
 }
 
 export function cycleThemePreference(preference: ThemePreference): ThemePreference {
-  if (preference === "system") return "light";
-  if (preference === "light") return "dark";
-  return "system";
-}
-
-export function getThemePreferenceLabel(preference: ThemePreference): string {
-  if (preference === "system") return "النظام";
-  if (preference === "light") return "فاتح";
-  return "داكن";
+  return preference === "dark" ? "light" : "dark";
 }
 
 const DARK_THEME: ThemeTokens = {
@@ -99,6 +90,9 @@ const DARK_THEME: ThemeTokens = {
   inputBorder: "rgba(255,255,255,0.16)",
   inputText: "#F3F4F6",
   inputPlaceholder: "#94A3B8",
+  redirectActionBg: "rgba(59,130,246,0.12)",
+  redirectActionBorder: "rgba(191,219,254,0.35)",
+  redirectIcon: "#BFDBFE",
 };
 
 const LIGHT_THEME: ThemeTokens = {
@@ -138,6 +132,9 @@ const LIGHT_THEME: ThemeTokens = {
   inputBorder: "rgba(148,163,184,0.45)",
   inputText: "#0F172A",
   inputPlaceholder: "#64748B",
+  redirectActionBg: "rgba(29,78,216,0.16)",
+  redirectActionBorder: "rgba(29,78,216,0.45)",
+  redirectIcon: "#1D4ED8",
 };
 
 export function getThemeTokens(theme: ResolvedTheme): ThemeTokens {
