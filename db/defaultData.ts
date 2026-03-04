@@ -61,7 +61,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           type: "secondary_task",
           name: "سنة الفجر (ركعتان)",
           done: false,
-          points: 5,
+          points: 10,
           locked: true,
 
 
@@ -104,7 +104,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
 
           icon: "pray",
           image: "",
-          redirect: "",
+          redirect: "أذكار الصلاة",
 
           checklist: [
             { id: "cl_fajr_jama8a", name: "جماعة", done: false, points: 8, icon: "users", image: "", redirect: "" },
@@ -324,7 +324,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
 
           icon: "pray",
           image: "",
-          redirect: "",
+          redirect: "أذكار الصلاة",
 
           checklist: [
             { id: "cl_dhuhr_jama8a", name: "جماعة", done: false, points: 8, icon: "users", image: "", redirect: "" },
@@ -354,7 +354,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
 
           icon: "pray",
           image: "",
-          redirect: "",
+          redirect: "أذكار الصلاة",
 
           checklist: [
             { id: "cl_jumuah_jama8a", name: "جماعة", done: false, points: 8, icon: "users", image: "", redirect: "" },
@@ -440,7 +440,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
 
           icon: "pray",
           image: "",
-          redirect: "",
+          redirect: "أذكار الصلاة",
 
           checklist: [
             { id: "cl_asr_jama8a", name: "جماعة", done: false, points: 8, icon: "users", image: "", redirect: "" },
@@ -526,7 +526,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
 
           icon: "pray",
           image: "",
-          redirect: "",
+          redirect: "أذكار الصلاة",
 
           checklist: [
             { id: "cl_maghrib_jama8a", name: "جماعة", done: false, points: 8, icon: "users", image: "", redirect: "" },
@@ -612,7 +612,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
 
           icon: "pray",
           image: "",
-          redirect: "",
+          redirect: "أذكار الصلاة",
 
           checklist: [
             { id: "cl_isha_jama8a", name: "جماعة", done: false, points: 8, icon: "users", image: "", redirect: "" },

@@ -10,15 +10,29 @@ function mergeSetWithSeed(existing: AdhkarSetDoc, seed: AdhkarSetDoc): AdhkarSet
     const seedMatch = seedItemById.get(item.id);
     if (!seedMatch) return item;
 
+    const normalizedReference =
+      item.reference ??
+      item.refrence ??
+      seedMatch.reference ??
+      seedMatch.refrence;
+
     return {
       ...item,
       content_type: item.content_type ?? seedMatch.content_type,
       quran: item.quran ?? seedMatch.quran,
+      reference: normalizedReference,
+      refrence: undefined,
     };
   });
 
   const mergedIds = new Set(mergedExistingItems.map((item) => item.id));
-  const appendedSeedItems = seed.items.filter((item) => !mergedIds.has(item.id));
+  const appendedSeedItems = seed.items
+    .filter((item) => !mergedIds.has(item.id))
+    .map((item) => ({
+      ...item,
+      reference: item.reference ?? item.refrence,
+      refrence: undefined,
+    }));
 
   return {
     ...existing,

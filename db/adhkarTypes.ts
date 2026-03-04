@@ -18,6 +18,8 @@ export interface AdhkarItem {
   id: string;
   key: string;
   text_ar: string;
+  reference?: string;
+  refrence?: string;
   repeat: number;
   priority: AdhkarPriority;
   content_type?: AdhkarContentType;

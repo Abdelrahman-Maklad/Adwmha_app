@@ -75,6 +75,10 @@ export default function AdhkarCard({
     if (!isQuranContent || typeof quranAyahNumber !== "number") return "";
     return formatAyahMarker(quranAyahNumber);
   }, [isQuranContent, quranAyahNumber]);
+  const referenceText = useMemo(
+    () => (item.reference ?? item.refrence ?? "").trim(),
+    [item.reference, item.refrence]
+  );
 
   return (
     <Pressable
@@ -122,6 +126,16 @@ export default function AdhkarCard({
         {item.text_ar}
         {markerText ? ` ${markerText}` : ""}
       </Text>
+      {referenceText ? (
+        <Text
+          style={[
+            styles.referenceText,
+            resolvedTheme === "light" ? styles.referenceTextLight : styles.referenceTextDark,
+          ]}
+        >
+          {referenceText}
+        </Text>
+      ) : null}
 
       {onOpenQuran && (
         <View style={styles.quranActionRow}>
@@ -192,6 +206,19 @@ const styles = StyleSheet.create({
     textAlign: "right",
     writingDirection: "rtl",
     fontFamily: FONT_FAMILY.cairoRegular,
+  },
+  referenceText: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "right",
+    writingDirection: "rtl",
+    fontFamily: FONT_FAMILY.cairoRegular,
+  },
+  referenceTextDark: {
+    color: "rgba(203,213,225,0.62)",
+  },
+  referenceTextLight: {
+    color: "rgba(51,65,85,0.65)",
   },
   footerRow: {
     flexDirection: "row",

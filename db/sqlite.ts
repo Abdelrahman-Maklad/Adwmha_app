@@ -9,7 +9,7 @@ export async function getDb() {
   if (_dbOpenPromise) return _dbOpenPromise;
 
   _dbOpenPromise = (async () => {
-    const db = await SQLite.openDatabaseAsync("adomha_v8999.db");
+    const db = await SQLite.openDatabaseAsync("adomha_v100001.db");
 
     await db.execAsync(`
     CREATE TABLE IF NOT EXISTS checkpoints (
