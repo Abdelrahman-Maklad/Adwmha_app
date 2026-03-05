@@ -4,23 +4,23 @@
     "slug": "Adomha",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/app_icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#111827"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.chatgptsilica.rnsteps"
+      "bundleIdentifier": "com.chatgptsilica.Adomha"
     },
     "android": {
-      "package": "com.chatgptsilica.rnsteps",
+      "package": "com.chatgptsilica.Adomha",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/splash-icon.png",
+        "backgroundColor": "#111827"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -48,8 +48,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "a56a93eb-6b38-4cd8-9c67-89cce00e2675"
+        "projectId": "dd80a141-ae7f-45b0-af23-09212e58330c"
       }
-    }
+    },
+    "owner": "bluei0077"
   }
 }
