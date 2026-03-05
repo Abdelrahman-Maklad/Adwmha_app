@@ -136,6 +136,14 @@ export async function loadCheckpoints(targetDate?: Date | string) {
   return checkpoints;
 }
 
+export async function loadAllCheckpointsRaw() {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ id: string; doc: string }>(
+    "SELECT id, doc FROM checkpoints;"
+  );
+  return rows.map((row) => JSON.parse(row.doc));
+}
+
 export async function updateTaskNotificationSettings(params: {
   taskId: string;
   notifications: boolean;

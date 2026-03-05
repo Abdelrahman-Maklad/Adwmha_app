@@ -45,11 +45,10 @@ import {
 } from "./services/prayerTimes";
 import { formatHijriDate, formatGregorianDate, toArabicDigits } from "./utils/dateFormat";
 import {
-  cancelCheckpointNotifications,
   cancelTaskNotifications,
-  scheduleCheckpointNotifications,
   scheduleTaskNotifications,
 } from "./services/taskNotifications";
+import { ensureScheduleNext48h } from "./services/checkpointNotificationScheduler";
 import StartScreen from "./StartScreen";
 import { RootStackParamList } from "./navigation/types";
 import { mapRedirectLabel } from "./utils/redirectMapper";
@@ -203,6 +202,7 @@ function CalendarHeader({
   resolvedTheme,
   onToggleTheme,
   onReturnToToday,
+  onOpenNotificationDebug,
 }: {
   dateInfo: DateInfo | null;
   locationLabel: string;
@@ -211,20 +211,23 @@ function CalendarHeader({
   resolvedTheme: "light" | "dark";
   onToggleTheme: () => void;
   onReturnToToday: () => void;
+  onOpenNotificationDebug: () => void;
 }) {
   return (
     <View style={styles.calendarHeader}>
       <View style={styles.topRow}>
         <View style={styles.topRowRight}>
-          <Image
-            source={
-              resolvedTheme === "dark"
-                ? require("./assets/logo-white-dark-theme.png")
-                : require("./assets/logo-gradient-lightheme.png")
-            }
-            style={styles.logo}
-            resizeMode="contain"
-          />
+          <Pressable onLongPress={onOpenNotificationDebug} delayLongPress={650}>
+            <Image
+              source={
+                resolvedTheme === "dark"
+                  ? require("./assets/logo-white-dark-theme.png")
+                  : require("./assets/logo-gradient-lightheme.png")
+              }
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </Pressable>
         </View>
 
         <View style={styles.topRowLeft}>
@@ -560,6 +563,7 @@ export default function TimelineScreen() {
         setSelectedDayTimes(result.times);
 
         await seedIfEmpty(result.times, result.lastThirdTime);
+        await ensureScheduleNext48h("startup");
         if (!active) return;
 
         let cards: HijriMonthDayCard[] = [];
@@ -870,6 +874,7 @@ export default function TimelineScreen() {
       });
 
       await refreshCheckpointsForDay(selectedGregorianDayKey || todayGregorianDayKey);
+      await ensureScheduleNext48h("checkpoint_settings_changed");
       setAddCheckpointModalVisible(false);
     } catch (e) {
       console.error("Failed to create checkpoint:", e);
@@ -930,9 +935,6 @@ export default function TimelineScreen() {
           void (async () => {
             try {
               setSavingCrud(true);
-              if (cp.notifications) {
-                await cancelCheckpointNotifications(cp.id);
-              }
               const tasks = cp.tasks ?? [];
               for (const task of tasks) {
                 if (task?.notifications) {
@@ -959,6 +961,7 @@ export default function TimelineScreen() {
                 });
                 return next;
               });
+              await ensureScheduleNext48h("checkpoint_settings_changed");
             } catch (e) {
               console.error("Failed to delete checkpoint:", e);
               Alert.alert("خطأ", "تعذر حذف المرحلة.");
@@ -1040,25 +1043,7 @@ export default function TimelineScreen() {
       }
 
       await refreshCheckpointsForDay(selectedGregorianDayKey || todayGregorianDayKey);
-
-      if (nextEnabled) {
-        const scheduled = await scheduleCheckpointNotifications({
-          checkpointId: cp.id,
-          checkpointName: cp.name,
-          repeat: cp.repeat ?? "daily",
-          repeatDays: cp.repeat_days ?? "",
-          notificationTime: effectiveTime,
-          notificationTitle: effectiveTitle,
-          notificationText: effectiveText,
-          notificationSound: effectiveSound,
-        });
-
-        if (!scheduled) {
-          Alert.alert("تنبيه", "تم الحفظ ولكن تعذر جدولة إشعار المرحلة.");
-        }
-      } else {
-        await cancelCheckpointNotifications(cp.id);
-      }
+      await ensureScheduleNext48h("checkpoint_settings_changed");
     } catch (e) {
       console.error("Failed to toggle default checkpoint notifications:", e);
       Alert.alert("خطأ", "حدث خطأ أثناء تحديث إعدادات التنبيه.");
@@ -1191,25 +1176,7 @@ export default function TimelineScreen() {
         }
 
         await refreshCheckpointsForDay(selectedGregorianDayKey || todayGregorianDayKey);
-
-        if (notificationsEnabled) {
-          const scheduled = await scheduleCheckpointNotifications({
-            checkpointId: selectedNotificationTarget.checkpointId,
-            checkpointName: selectedNotificationTarget.itemName,
-            repeat: selectedNotificationTarget.repeat,
-            repeatDays: selectedNotificationTarget.repeatDays,
-            notificationTime: effectiveTime,
-            notificationTitle: effectiveTitle,
-            notificationText: effectiveText,
-            notificationSound: effectiveSound,
-          });
-
-          if (!scheduled) {
-            Alert.alert("تنبيه", "تم الحفظ ولكن تعذر جدولة إشعار المرحلة.");
-          }
-        } else {
-          await cancelCheckpointNotifications(selectedNotificationTarget.checkpointId);
-        }
+        await ensureScheduleNext48h("checkpoint_settings_changed");
       }
 
       setNotificationModalVisible(false);
@@ -1260,6 +1227,7 @@ export default function TimelineScreen() {
           resolvedTheme={resolvedTheme}
           onToggleTheme={handleToggleTheme}
           onReturnToToday={handleReturnToToday}
+          onOpenNotificationDebug={() => navigation.navigate("NotificationDebug")}
         />
         <FlatList
           ref={dayCardsListRef}

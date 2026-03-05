@@ -4,7 +4,7 @@
     "slug": "Adomha",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/app_icon.png",
+    "icon": "./assets/Group 1.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
     "splash": {
@@ -18,15 +18,18 @@
     },
     "android": {
       "package": "com.chatgptsilica.Adomha",
+      "icon": "./assets/Group 1.png",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/splash-icon.png",
+        "foregroundImage": "./assets/Group 1.png",
         "backgroundColor": "#111827"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
+        "android.permission.POST_NOTIFICATIONS",
         "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.SCHEDULE_EXACT_ALARM"
       ]
     },
     "web": {

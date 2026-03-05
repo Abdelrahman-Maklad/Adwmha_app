@@ -1,5 +1,6 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import { ensureScheduleNext48h } from "./checkpointNotificationScheduler";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -215,6 +216,7 @@ export async function cancelTaskNotifications(taskId: string) {
 
 export async function cancelCheckpointNotifications(checkpointId: string) {
   await cancelByDataKey("checkpointId", checkpointId);
+  await ensureScheduleNext48h("checkpoint_settings_changed");
 }
 
 export async function scheduleTaskNotifications(input: {
@@ -250,15 +252,6 @@ export async function scheduleCheckpointNotifications(input: {
   notificationText?: string;
   notificationSound?: string;
 }) {
-  return scheduleForEntity({
-    entityType: "checkpoint",
-    entityId: input.checkpointId,
-    itemName: input.checkpointName,
-    repeat: input.repeat,
-    repeatDays: input.repeatDays,
-    notificationTime: input.notificationTime,
-    notificationTitle: input.notificationTitle,
-    notificationText: input.notificationText,
-    notificationSound: input.notificationSound,
-  });
+  await ensureScheduleNext48h("checkpoint_settings_changed");
+  return true;
 }

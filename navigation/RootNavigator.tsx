@@ -4,6 +4,8 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import TimelineScreen from "../TimelineScreen";
 import AdhkarDetailsScreen from "../screens/AdhkarDetailsScreen";
 import QuranReferenceScreen from "../screens/QuranReferenceScreen";
+import NotificationDebugScreen from "../screens/NotificationDebugScreen";
+import NotificationHealthScreen from "../screens/NotificationHealthScreen";
 import { RootStackParamList } from "./types";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -35,6 +37,16 @@ export default function RootNavigator() {
           name="AdhkarDetails"
           component={AdhkarDetailsScreen}
           options={{ title: "\u062A\u0641\u0627\u0635\u064A\u0644 \u0627\u0644\u0623\u0630\u0643\u0627\u0631" }}
+        />
+        <Stack.Screen
+          name="NotificationDebug"
+          component={NotificationDebugScreen}
+          options={{ title: "Notification Debug" }}
+        />
+        <Stack.Screen
+          name="NotificationHealth"
+          component={NotificationHealthScreen}
+          options={{ title: "Fix Delayed Notifications" }}
         />
         <Stack.Screen
           name="QuranReference"
