@@ -2,6 +2,7 @@
 import { getDb } from "./sqlite";
 type ThemePreference = "light" | "dark";
 export type PrayerAdhanSound = "default" | "adhan";
+export type TimeFormatPreference = "12h" | "24h";
 
 function normalizeArabicDayName(day: string): string {
   return day
@@ -410,6 +411,8 @@ export async function setAppSetting(key: string, value: string): Promise<void> {
 
 const THEME_PREF_KEY = "theme_preference";
 const PRAYER_ADHAN_SOUND_KEY = "prayer_adhan_sound";
+const NOTIF_SETUP_PROMPT_SEEN_KEY = "notif_setup_prompt_seen_v1";
+const TIME_FORMAT_PREF_KEY = "time_format_preference";
 
 export async function getThemePreference(): Promise<ThemePreference> {
   const raw = await getAppSetting(THEME_PREF_KEY);
@@ -429,4 +432,23 @@ export async function getPrayerAdhanSoundPreference(): Promise<PrayerAdhanSound>
 
 export async function setPrayerAdhanSoundPreference(value: PrayerAdhanSound): Promise<void> {
   await setAppSetting(PRAYER_ADHAN_SOUND_KEY, value);
+}
+
+export async function getTimeFormatPreference(): Promise<TimeFormatPreference> {
+  const raw = await getAppSetting(TIME_FORMAT_PREF_KEY);
+  if (raw === "12h" || raw === "24h") return raw;
+  return "24h";
+}
+
+export async function setTimeFormatPreference(value: TimeFormatPreference): Promise<void> {
+  await setAppSetting(TIME_FORMAT_PREF_KEY, value);
+}
+
+export async function hasSeenNotificationSetupPrompt(): Promise<boolean> {
+  const raw = await getAppSetting(NOTIF_SETUP_PROMPT_SEEN_KEY);
+  return raw === "1";
+}
+
+export async function setNotificationSetupPromptSeen(value: boolean): Promise<void> {
+  await setAppSetting(NOTIF_SETUP_PROMPT_SEEN_KEY, value ? "1" : "0");
 }

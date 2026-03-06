@@ -3,20 +3,28 @@ import { ImageBackground, Pressable, StyleSheet, Switch, Text, View } from "reac
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import {
   getPrayerAdhanSoundPreference,
+  getTimeFormatPreference,
+  setNotificationSetupPromptSeen,
   getThemePreference,
   PrayerAdhanSound,
+  TimeFormatPreference,
   setPrayerAdhanSoundPreference,
   setThemePreference,
+  setTimeFormatPreference,
 } from "../db/queries";
 import { RootStackParamList } from "../navigation/types";
 import { getThemeTokens, ThemePreference, resolveThemePreference } from "../constants/theme";
 import { ensureScheduleNext48h } from "../services/checkpointNotificationScheduler";
+import NotificationSetupModal from "../components/NotificationSetupModal";
+import { openNotificationSettings } from "../utils/openNotificationSettings";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Settings">;
 
 export default function SettingsScreen({ navigation }: Props) {
   const [themePreference, setThemePreferenceState] = useState<ThemePreference>("dark");
   const [adhanSound, setAdhanSound] = useState<PrayerAdhanSound>("default");
+  const [timeFormatPreference, setTimeFormatPreferenceState] = useState<TimeFormatPreference>("24h");
+  const [notificationSetupVisible, setNotificationSetupVisible] = useState(false);
   const resolvedTheme = resolveThemePreference(themePreference);
   const theme = getThemeTokens(resolvedTheme);
 
@@ -24,13 +32,15 @@ export default function SettingsScreen({ navigation }: Props) {
     let mounted = true;
     void (async () => {
       try {
-        const [pref, sound] = await Promise.all([
+        const [pref, sound, timeFormat] = await Promise.all([
           getThemePreference(),
           getPrayerAdhanSoundPreference(),
+          getTimeFormatPreference(),
         ]);
         if (!mounted) return;
         setThemePreferenceState(pref);
         setAdhanSound(sound);
+        setTimeFormatPreferenceState(timeFormat);
       } catch {}
     })();
     return () => {
@@ -57,6 +67,22 @@ export default function SettingsScreen({ navigation }: Props) {
     setAdhanSound(next);
     await setPrayerAdhanSoundPreference(next);
     await ensureScheduleNext48h("checkpoint_settings_changed");
+  };
+
+  const onSelectTimeFormat = async (next: TimeFormatPreference) => {
+    if (next === timeFormatPreference) return;
+    setTimeFormatPreferenceState(next);
+    await setTimeFormatPreference(next);
+  };
+
+  const closeNotificationSetupModal = async () => {
+    setNotificationSetupVisible(false);
+    await setNotificationSetupPromptSeen(true);
+  };
+
+  const openSettingsFromModal = async () => {
+    await openNotificationSettings();
+    await closeNotificationSetupModal();
   };
 
   return (
@@ -107,11 +133,49 @@ export default function SettingsScreen({ navigation }: Props) {
               <Text style={[styles.soundText, { color: theme.textPrimary }]}>Adhan</Text>
             </Pressable>
           </View>
-          <Text style={[styles.value, { color: theme.textMuted }]}>
-            Applied to prayer checkpoint reminders only.
-          </Text>
+          <Text style={[styles.value, { color: theme.textMuted }]}>Applied to prayer checkpoint reminders only.</Text>
+        </View>
+
+        <View style={[styles.card, { backgroundColor: theme.dayCardBg, borderColor: theme.dayCardBorder }]}>
+          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>تنسيق الوقت</Text>
+          <View style={styles.soundRow}>
+            <Pressable
+              style={[
+                styles.soundOption,
+                { borderColor: theme.dayCardBorder },
+                timeFormatPreference === "24h" && { backgroundColor: theme.dayCardSelectedBg },
+              ]}
+              onPress={() => void onSelectTimeFormat("24h")}
+            >
+              <Text style={[styles.soundText, { color: theme.textPrimary }]}>24 ساعة</Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.soundOption,
+                { borderColor: theme.dayCardBorder },
+                timeFormatPreference === "12h" && { backgroundColor: theme.dayCardSelectedBg },
+              ]}
+              onPress={() => void onSelectTimeFormat("12h")}
+            >
+              <Text style={[styles.soundText, { color: theme.textPrimary }]}>12 ساعة</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={[styles.card, { backgroundColor: theme.dayCardBg, borderColor: theme.dayCardBorder }]}>
+          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>إعدادات الإشعارات المهمة</Text>
+          <Text style={[styles.value, { color: theme.textSecondary }]}>افتح الإرشادات وخطوات تفعيل الإشعارات في الخلفية.</Text>
+          <Pressable style={styles.actionButton} onPress={() => setNotificationSetupVisible(true)}>
+            <Text style={styles.actionButtonText}>عرض الإرشادات</Text>
+          </Pressable>
         </View>
       </View>
+      <NotificationSetupModal
+        visible={notificationSetupVisible}
+        onClose={() => void closeNotificationSetupModal()}
+        onOpenSettings={openSettingsFromModal}
+        theme={theme}
+      />
     </ImageBackground>
   );
 }
@@ -158,5 +222,18 @@ const styles = StyleSheet.create({
   soundText: {
     fontSize: 14,
     fontWeight: "600",
+  },
+  actionButton: {
+    marginTop: 4,
+    borderRadius: 12,
+    backgroundColor: "#2563EB",
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
   },
 });

@@ -28,7 +28,9 @@ import {
   deleteTaskFromCheckpoint,
   updateCheckpointNotificationSettings,
   updateTaskNotificationSettings,
+  getTimeFormatPreference,
   getThemePreference,
+  TimeFormatPreference,
 } from "./db/queries";
 import { loadCompletionStateByDay, saveCompletionStateByDay } from "./db/progress";
 import {
@@ -286,14 +288,25 @@ function CalendarHeader({
 }
 const MemoCalendarHeader = React.memo(CalendarHeader);
 
-function formatTimeLabel(hhmm: string) {
+function formatTimeByPreference(hhmm: string, preference: TimeFormatPreference): string {
   const normalized = extractHHmm(hhmm);
-  if (!normalized || normalized === "api") return toArabicDigits("? 5:00");
-
+  if (!normalized) {
+    return preference === "12h" ? `${toArabicDigits("05:00")} ص` : toArabicDigits("05:00");
+  }
   const [hhStr, mmStr] = normalized.split(":");
   const hh = Number(hhStr);
   const mm = Number(mmStr);
-  return ` ${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+  if (!Number.isInteger(hh) || !Number.isInteger(mm)) {
+    return preference === "12h" ? `${toArabicDigits("05:00")} ص` : toArabicDigits("05:00");
+  }
+
+  if (preference === "24h") {
+    return toArabicDigits(`${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`);
+  }
+
+  const suffix = hh >= 12 ? "م" : "ص";
+  const h12 = hh % 12 === 0 ? 12 : hh % 12;
+  return `${toArabicDigits(`${String(h12).padStart(2, "0")}:${String(mm).padStart(2, "0")}`)} ${suffix}`;
 }
 
 function parseHHmmToDate(hhmm: string): Date {
@@ -484,6 +497,7 @@ export default function TimelineScreen() {
   } | null>(null);
   const [savingCrud, setSavingCrud] = useState(false);
   const [themePreference, setThemePreferenceState] = useState<ThemePreference>("dark");
+  const [timeFormatPreference, setTimeFormatPreferenceState] = useState<TimeFormatPreference>("24h");
   const dayCardsListRef = useRef<FlatList<HijriMonthDayCard> | null>(null);
   const pendingDayScrollIndexRef = useRef<number | null>(null);
   const didInitialDayAutoScrollRef = useRef(false);
@@ -508,8 +522,12 @@ export default function TimelineScreen() {
     let mounted = true;
     void (async () => {
       try {
-        const pref = await getThemePreference();
+        const [pref, timePref] = await Promise.all([
+          getThemePreference(),
+          getTimeFormatPreference(),
+        ]);
         if (mounted) setThemePreferenceState(pref);
+        if (mounted) setTimeFormatPreferenceState(timePref);
       } catch {}
     })();
     return () => {
@@ -521,8 +539,12 @@ export default function TimelineScreen() {
     const unsubscribe = navigation.addListener("focus", () => {
       void (async () => {
         try {
-          const pref = await getThemePreference();
+          const [pref, timePref] = await Promise.all([
+            getThemePreference(),
+            getTimeFormatPreference(),
+          ]);
           setThemePreferenceState(pref);
+          setTimeFormatPreferenceState(timePref);
         } catch {}
       })();
     });
@@ -1429,21 +1451,6 @@ export default function TimelineScreen() {
           return (
             <View style={styles.checkpointRow}>
               <View style={styles.timelineCol}>
-                <View style={styles.timelineMetaRow}>
-                  <View
-                    style={[
-                      styles.timelineTimePill,
-                      {
-                        backgroundColor: withAlpha(color, 0.16),
-                        borderColor: withAlpha(color, 0.35),
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.timelineTimeText, { color: theme.textOnAccent }]}>
-                      {formatTimeLabel(cp.time)}
-                    </Text>
-                  </View>
-                </View>
                 <View style={[styles.line, { backgroundColor: withAlpha(color, 0.6) }]} />
               </View>
 
@@ -1520,6 +1527,10 @@ export default function TimelineScreen() {
 
                       <Text style={[styles.headerName, { color: theme.textPrimary }]} numberOfLines={1}>
                         {cp.name}
+                      </Text>
+
+                      <Text style={[styles.headerTimeText, { color }]}>
+                        {formatTimeByPreference(cp.time, timeFormatPreference)}
                       </Text>
                     </View>
                   </Pressable>
@@ -1801,7 +1812,7 @@ export default function TimelineScreen() {
                 onPress={() => setShowAddCheckpointTimePicker(true)}
               >
                 <Text style={[styles.timeSelectText, { color: theme.inputText }]}>
-                  {toArabicDigits(toHHmm(newCheckpointTime))}
+                  {formatTimeByPreference(toHHmm(newCheckpointTime), timeFormatPreference)}
                 </Text>
               </Pressable>
             </View>
@@ -2045,7 +2056,7 @@ export default function TimelineScreen() {
                 disabled={!notificationsEnabled}
               >
                 <Text style={[styles.timeSelectText, { color: theme.inputText }]}>
-                  {toArabicDigits(toHHmm(notificationTime))}
+                  {formatTimeByPreference(toHHmm(notificationTime), timeFormatPreference)}
                 </Text>
               </Pressable>
             </View>
@@ -2356,29 +2367,12 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     marginRight: 4,
   },
-  timelineMetaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-start",
-  },
-  timelineTimePill: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-    minWidth: 50,
-    alignItems: "center",
-  },
   line: {
-    marginTop: 6,
+    marginTop: 2,
     width: 2,
     flex: 1,
     borderRadius: 2,
     marginLeft: 4,
-  },
-  timelineTimeText: {
-    fontSize: 10,
-    fontWeight: "600",
   },
 
   contentCol: {
@@ -2413,15 +2407,10 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     textAlign: "right",
   },
-
-  timePill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  timeText: {
+  headerTimeText: {
+    fontFamily: FONTS.semiBold,
     fontSize: 12,
-    fontWeight: "600",
+    textAlign: "right",
   },
 
   tasksContainer: {

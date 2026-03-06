@@ -121,8 +121,8 @@ const LIGHT_THEME: ThemeTokens = {
   dayCardSelectedBorder: "#6366F1",
   actionButtonBg: "rgba(255,255,255,0.86)",
   actionButtonBorder: "rgba(99,102,241,0.24)",
-  headerPillBg: "rgba(255,255,255,0.82)",
-  headerPillBorder: "rgba(99,102,241,0.22)",
+  headerPillBg: "rgba(255,255,255,0.36)",
+  headerPillBorder: "rgba(99,102,241,0.28)",
   checklistBg: "rgba(255,255,255,0.80)",
   checklistBorder: "rgba(148,163,184,0.35)",
   modalBackdrop: "rgba(15,23,42,0.28)",
@@ -140,4 +140,3 @@ const LIGHT_THEME: ThemeTokens = {
 export function getThemeTokens(theme: ResolvedTheme): ThemeTokens {
   return theme === "light" ? LIGHT_THEME : DARK_THEME;
 }
-
