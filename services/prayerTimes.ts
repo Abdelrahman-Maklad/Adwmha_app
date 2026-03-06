@@ -907,6 +907,52 @@ export async function getCachedHijriMonthCalendarWithoutLocation(
   return getCachedHijriMonthCalendar(gregorianDate, lastLocation.lat, lastLocation.lng, method);
 }
 
+export type PrayerInitializationSnapshot = {
+  times: PrayerTimes;
+  lastThirdTime: string;
+  date: DateInfo | null;
+  locationLabel: string;
+  location: { latitude: number; longitude: number } | null;
+};
+
+export async function getCachedPrayerInitializationSnapshot(): Promise<PrayerInitializationSnapshot> {
+  const currentDateKey = toGregorianKey(new Date());
+  const cachedLocationLabel = await getLastCachedLocationLabel();
+  const genericLocationLabel = "\u0627\u0644\u0645\u0648\u0642\u0639 \u063A\u064A\u0631 \u0645\u062A\u0627\u062D";
+  const [cached, cachedDate, cachedLocation] = await Promise.all([
+    getPrayerTimesWithoutLocation(currentDateKey),
+    getDateInfoWithoutLocation(currentDateKey),
+    getLastCachedLocation(),
+  ]);
+
+  if (cached) {
+    return {
+      times: cached,
+      lastThirdTime: calculateLastThird(cached.isha, cached.fajr),
+      date: cachedDate,
+      locationLabel: cachedLocationLabel ?? genericLocationLabel,
+      location: cachedLocation ? { latitude: cachedLocation.lat, longitude: cachedLocation.lng } : null,
+    };
+  }
+
+  return {
+    times: FALLBACK_TIMES,
+    lastThirdTime: FALLBACK_LAST_THIRD,
+    date: null,
+    locationLabel: cachedLocationLabel ?? genericLocationLabel,
+    location: cachedLocation ? { latitude: cachedLocation.lat, longitude: cachedLocation.lng } : null,
+  };
+}
+
+export async function initializePrayerTimesStaged(): Promise<{
+  initial: PrayerInitializationSnapshot;
+  refresh: Promise<PrayerInitializationSnapshot>;
+}> {
+  const initial = await getCachedPrayerInitializationSnapshot();
+  const refresh = initializePrayerTimes();
+  return { initial, refresh };
+}
+
 export async function initializePrayerTimes(): Promise<{
   times: PrayerTimes;
   lastThirdTime: string;

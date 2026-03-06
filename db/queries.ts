@@ -1,6 +1,7 @@
 // db/queries.ts
 import { getDb } from "./sqlite";
 type ThemePreference = "light" | "dark";
+export type PrayerAdhanSound = "default" | "adhan";
 
 function normalizeArabicDayName(day: string): string {
   return day
@@ -408,6 +409,7 @@ export async function setAppSetting(key: string, value: string): Promise<void> {
 }
 
 const THEME_PREF_KEY = "theme_preference";
+const PRAYER_ADHAN_SOUND_KEY = "prayer_adhan_sound";
 
 export async function getThemePreference(): Promise<ThemePreference> {
   const raw = await getAppSetting(THEME_PREF_KEY);
@@ -417,4 +419,14 @@ export async function getThemePreference(): Promise<ThemePreference> {
 
 export async function setThemePreference(value: ThemePreference): Promise<void> {
   await setAppSetting(THEME_PREF_KEY, value);
+}
+
+export async function getPrayerAdhanSoundPreference(): Promise<PrayerAdhanSound> {
+  const raw = await getAppSetting(PRAYER_ADHAN_SOUND_KEY);
+  if (raw === "adhan" || raw === "default") return raw;
+  return "default";
+}
+
+export async function setPrayerAdhanSoundPreference(value: PrayerAdhanSound): Promise<void> {
+  await setAppSetting(PRAYER_ADHAN_SOUND_KEY, value);
 }

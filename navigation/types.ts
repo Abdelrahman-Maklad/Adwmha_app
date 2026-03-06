@@ -1,8 +1,7 @@
 export type RootStackParamList = {
   Timeline: undefined;
+  Settings: undefined;
   AdhkarDetails: { setId: string };
-  NotificationDebug: undefined;
-  NotificationHealth: undefined;
   QuranReference: {
     titleAr: string;
     quran: {

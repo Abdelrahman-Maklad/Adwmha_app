@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -29,11 +29,10 @@ import {
   updateCheckpointNotificationSettings,
   updateTaskNotificationSettings,
   getThemePreference,
-  setThemePreference as saveThemePreference,
 } from "./db/queries";
 import { loadCompletionStateByDay, saveCompletionStateByDay } from "./db/progress";
 import {
-  initializePrayerTimes,
+  initializePrayerTimesStaged,
   DateInfo,
   fetchHijriMonthCalendar,
   getCachedHijriMonthCalendar,
@@ -55,7 +54,6 @@ import { mapRedirectLabel } from "./utils/redirectMapper";
 import { FONT_FAMILY } from "./constants/fonts";
 import {
   ThemePreference,
-  cycleThemePreference,
   getThemeTokens,
   resolveThemePreference,
 } from "./constants/theme";
@@ -82,6 +80,7 @@ import {
   Plus,
   Trash2,
   ArrowUpRight,
+  Settings,
 } from "lucide-react-native";
 
 const ICON_MAP: Record<string, any> = {
@@ -200,24 +199,22 @@ function CalendarHeader({
   totalPoints,
   theme,
   resolvedTheme,
-  onToggleTheme,
   onReturnToToday,
-  onOpenNotificationDebug,
+  onOpenSettings,
 }: {
   dateInfo: DateInfo | null;
   locationLabel: string;
   totalPoints: number;
   theme: ReturnType<typeof getThemeTokens>;
   resolvedTheme: "light" | "dark";
-  onToggleTheme: () => void;
   onReturnToToday: () => void;
-  onOpenNotificationDebug: () => void;
+  onOpenSettings: () => void;
 }) {
   return (
     <View style={styles.calendarHeader}>
       <View style={styles.topRow}>
         <View style={styles.topRowRight}>
-          <Pressable onLongPress={onOpenNotificationDebug} delayLongPress={650}>
+          <View>
             <Image
               source={
                 resolvedTheme === "dark"
@@ -227,23 +224,19 @@ function CalendarHeader({
               style={styles.logo}
               resizeMode="contain"
             />
-          </Pressable>
+          </View>
         </View>
 
         <View style={styles.topRowLeft}>
           <View style={styles.locationWrap}>
             <Pressable
               style={[
-                styles.themeIconButton,
+                styles.locationActionButton,
                 { backgroundColor: theme.dayCardBg, borderColor: theme.dayCardBorder },
               ]}
-              onPress={onToggleTheme}
+              onPress={onOpenSettings}
             >
-              {resolvedTheme === "dark" ? (
-                <Sun size={16} color={theme.iconPrimary} />
-              ) : (
-                <Moon size={16} color={theme.iconPrimary} />
-              )}
+              <Settings size={16} color={theme.iconPrimary} />
             </Pressable>
             <View style={[styles.locationPill, { backgroundColor: theme.locationPillBg }]}>
             <MapPin size={14} color={theme.locationPillText} />
@@ -291,6 +284,7 @@ function CalendarHeader({
     </View>
   );
 }
+const MemoCalendarHeader = React.memo(CalendarHeader);
 
 function formatTimeLabel(hhmm: string) {
   const normalized = extractHHmm(hhmm);
@@ -430,6 +424,7 @@ const WEEKDAY_OPTIONS = [
   { label: "الجمعة", value: "Friday" },
   { label: "السبت", value: "Saturday" },
 ];
+const DAY_CARD_ITEM_WIDTH = 68;
 
 export default function TimelineScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -441,7 +436,6 @@ export default function TimelineScreen() {
 
   const [checkpoints, setCheckpoints] = useState<any[]>([]);
   const [err, setErr] = useState("");
-  const [bootDelayDone, setBootDelayDone] = useState(false);
   const [dateInfo, setDateInfo] = useState<DateInfo | null>(null);
   const [monthDayCards, setMonthDayCards] = useState<HijriMonthDayCard[]>([]);
   const [selectedGregorianDayKey, setSelectedGregorianDayKey] = useState("");
@@ -452,7 +446,7 @@ export default function TimelineScreen() {
   );
   const [selectedDayTimes, setSelectedDayTimes] = useState<PrayerTimes | null>(null);
 
-  const [expandedCheckpoints, setExpandedCheckpoints] = useState<Set<string>>(new Set());
+  const [expandedCheckpointId, setExpandedCheckpointId] = useState<string | null>(null);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
 
   const [doneState, setDoneState] = useState<Record<string, boolean>>({});
@@ -492,9 +486,23 @@ export default function TimelineScreen() {
   const [themePreference, setThemePreferenceState] = useState<ThemePreference>("dark");
   const dayCardsListRef = useRef<FlatList<HijriMonthDayCard> | null>(null);
   const pendingDayScrollIndexRef = useRef<number | null>(null);
+  const didInitialDayAutoScrollRef = useRef(false);
+  const checkpointsRequestRef = useRef(0);
+  const completionRequestRef = useRef(0);
+  const timesRequestRef = useRef(0);
+  const locationCoordsRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  const selectedDayKeyRef = useRef("");
 
   const resolvedTheme = resolveThemePreference(themePreference);
   const theme = getThemeTokens(resolvedTheme);
+
+  useEffect(() => {
+    locationCoordsRef.current = locationCoords;
+  }, [locationCoords]);
+
+  useEffect(() => {
+    selectedDayKeyRef.current = selectedGregorianDayKey;
+  }, [selectedGregorianDayKey]);
 
   useEffect(() => {
     let mounted = true;
@@ -509,11 +517,17 @@ export default function TimelineScreen() {
     };
   }, []);
 
-  const handleToggleTheme = () => {
-    const next = cycleThemePreference(themePreference);
-    setThemePreferenceState(next);
-    void saveThemePreference(next);
-  };
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", () => {
+      void (async () => {
+        try {
+          const pref = await getThemePreference();
+          setThemePreferenceState(pref);
+        } catch {}
+      })();
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   const toggleWeekday = (
     value: string,
@@ -525,25 +539,9 @@ export default function TimelineScreen() {
     });
   };
 
-  const refreshCheckpointsForDay = async (dayKey?: string) => {
+  const refreshCheckpointsForDay = useCallback(async (dayKey?: string) => {
     const data = await loadCheckpoints(dayKey);
     setCheckpoints(data);
-    setExpandedCheckpoints((prev) => {
-      if (prev.size === 0) {
-        return new Set(data.map((cp: any) => cp.id));
-      }
-
-      const next = new Set<string>();
-      data.forEach((cp: any) => {
-        if (prev.has(cp.id)) next.add(cp.id);
-      });
-      return next;
-    });
-  };
-
-  useEffect(() => {
-    const timer = setTimeout(() => setBootDelayDone(true), 3000);
-    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -555,34 +553,18 @@ export default function TimelineScreen() {
         if (!active) return;
         setTodayGregorianDayKey(todayKey);
 
-        const result = await initializePrayerTimes();
+        const staged = await initializePrayerTimesStaged();
+        const result = staged.initial;
         if (!active) return;
         setDateInfo(result.date);
         setLocationLabel(result.locationLabel);
         setLocationCoords(result.location);
         setSelectedDayTimes(result.times);
 
-        await seedIfEmpty(result.times, result.lastThirdTime);
-        await ensureScheduleNext48h("startup");
-        if (!active) return;
-
         let cards: HijriMonthDayCard[] = [];
         if (result.location) {
-          cards = await fetchHijriMonthCalendar(
-            new Date(),
-            result.location.latitude,
-            result.location.longitude
-          );
+          cards = await getCachedHijriMonthCalendar(new Date(), result.location.latitude, result.location.longitude);
           if (!active) return;
-
-          if (cards.length === 0) {
-            cards = await getCachedHijriMonthCalendar(
-              new Date(),
-              result.location.latitude,
-              result.location.longitude
-            );
-            if (!active) return;
-          }
         } else {
           cards = await getCachedHijriMonthCalendarWithoutLocation(new Date());
           if (!active) return;
@@ -611,14 +593,58 @@ export default function TimelineScreen() {
 
         const initialSelectedKey =
           cards.find((day) => day.isToday)?.gregorianKey ?? cards[0]?.gregorianKey ?? todayKey;
-        const persistedDoneState = await loadCompletionStateByDay(initialSelectedKey);
-        if (!active) return;
-
-        await refreshCheckpointsForDay(initialSelectedKey);
-        if (!active) return;
         setMonthDayCards(cards);
         setSelectedGregorianDayKey(initialSelectedKey);
-        setDoneState(persistedDoneState);
+        setDoneState({});
+
+        void (async () => {
+          try {
+            await seedIfEmpty(result.times, result.lastThirdTime);
+            await ensureScheduleNext48h("startup");
+          } catch (startupError) {
+            console.warn("Startup background setup failed:", startupError);
+          }
+        })();
+
+        void (async () => {
+          try {
+            const refreshed = await staged.refresh;
+            if (!active) return;
+            setDateInfo(refreshed.date);
+            setLocationLabel(refreshed.locationLabel);
+            setLocationCoords(refreshed.location);
+            if (selectedDayKeyRef.current === "" || selectedDayKeyRef.current === todayKey) {
+              setSelectedDayTimes(refreshed.times);
+            }
+
+            let refreshedCards: HijriMonthDayCard[] = [];
+            if (refreshed.location) {
+              refreshedCards = await fetchHijriMonthCalendar(
+                new Date(),
+                refreshed.location.latitude,
+                refreshed.location.longitude
+              );
+              if (!active) return;
+              if (refreshedCards.length === 0) {
+                refreshedCards = await getCachedHijriMonthCalendar(
+                  new Date(),
+                  refreshed.location.latitude,
+                  refreshed.location.longitude
+                );
+                if (!active) return;
+              }
+            } else {
+              refreshedCards = await getCachedHijriMonthCalendarWithoutLocation(new Date());
+              if (!active) return;
+            }
+
+            if (refreshedCards.length > 0) {
+              setMonthDayCards(refreshedCards);
+            }
+          } catch (refreshError) {
+            console.warn("Background prayer data refresh failed:", refreshError);
+          }
+        })();
       } catch (e: any) {
         if (!active) return;
         setErr(e?.message ?? String(e));
@@ -634,29 +660,64 @@ export default function TimelineScreen() {
 
   useEffect(() => {
     if (!selectedGregorianDayKey) return;
-    (async () => {
-      const state = await loadCompletionStateByDay(selectedGregorianDayKey);
-      setDoneState(state);
-    })();
-  }, [selectedGregorianDayKey]);
 
-  useEffect(() => {
-    if (!selectedGregorianDayKey) return;
+    const checkpointsReqId = ++checkpointsRequestRef.current;
+    const completionReqId = ++completionRequestRef.current;
+    const timesReqId = ++timesRequestRef.current;
+    const selectedDay = selectedGregorianDayKey;
+    const currentLocation = locationCoordsRef.current;
     let active = true;
 
     (async () => {
-      const directTimes = locationCoords
-        ? await fetchPrayerTimesForDate(
-            locationCoords.latitude,
-            locationCoords.longitude,
-            selectedGregorianDayKey
-          )
-        : await getPrayerTimesWithoutLocation(selectedGregorianDayKey);
-      const times = directTimes ?? (await getPrayerTimesWithoutLocation(selectedGregorianDayKey));
-      if (!active || !times) return;
-      setSelectedDayTimes(times);
+      const [dayCheckpoints, dayCompletionState, cachedDayTimes] = await Promise.all([
+        loadCheckpoints(selectedDay),
+        loadCompletionStateByDay(selectedDay),
+        getPrayerTimesWithoutLocation(selectedDay),
+      ]);
+
+      if (!active) return;
+      if (checkpointsReqId === checkpointsRequestRef.current) {
+        setCheckpoints(dayCheckpoints);
+      }
+      if (completionReqId === completionRequestRef.current) {
+        setDoneState(dayCompletionState);
+      }
+      if (timesReqId === timesRequestRef.current) {
+        setSelectedDayTimes(cachedDayTimes ?? null);
+      }
+
+      if (!currentLocation) return;
+      const freshDayTimes = await fetchPrayerTimesForDate(
+        currentLocation.latitude,
+        currentLocation.longitude,
+        selectedDay
+      );
+      if (!active) return;
+      if (timesReqId === timesRequestRef.current && freshDayTimes) {
+        setSelectedDayTimes(freshDayTimes);
+      }
     })();
 
+    return () => {
+      active = false;
+    };
+  }, [selectedGregorianDayKey]);
+
+  useEffect(() => {
+    if (!selectedGregorianDayKey || !locationCoords) return;
+    const timesReqId = ++timesRequestRef.current;
+    let active = true;
+    (async () => {
+      const freshDayTimes = await fetchPrayerTimesForDate(
+        locationCoords.latitude,
+        locationCoords.longitude,
+        selectedGregorianDayKey
+      );
+      if (!active || !freshDayTimes) return;
+      if (timesReqId === timesRequestRef.current) {
+        setSelectedDayTimes(freshDayTimes);
+      }
+    })();
     return () => {
       active = false;
     };
@@ -769,13 +830,32 @@ export default function TimelineScreen() {
     return applyLeadTime(timeByCheckpointId[checkpointId] ?? fallbackTime);
   };
 
-  const toggleCheckpoint = (checkpointId: string) => {
-    setExpandedCheckpoints((prev) => {
-      const next = new Set(prev);
-      if (next.has(checkpointId)) next.delete(checkpointId);
-      else next.add(checkpointId);
-      return next;
+  useEffect(() => {
+    if (!selectedGregorianDayKey) return;
+    if (selectedGregorianDayKey !== todayGregorianDayKey) {
+      setExpandedCheckpointId(null);
+      return;
+    }
+
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    let bestId: string | null = null;
+    let bestMinutes = -1;
+
+    checkpointsForSelectedDay.forEach((cp: any) => {
+      const minutes = parseTimeForSort(String(cp?.time ?? ""));
+      if (minutes == null) return;
+      if (minutes <= nowMinutes && minutes >= bestMinutes) {
+        bestMinutes = minutes;
+        bestId = String(cp.id);
+      }
     });
+
+    setExpandedCheckpointId(bestId);
+  }, [checkpointsForSelectedDay, selectedGregorianDayKey, todayGregorianDayKey]);
+
+  const toggleCheckpoint = (checkpointId: string) => {
+    setExpandedCheckpointId((prev) => (prev === checkpointId ? null : checkpointId));
   };
 
   const toggleTask = (checkpointId: string, taskId: string) => {
@@ -804,23 +884,21 @@ export default function TimelineScreen() {
     }
   };
 
-  const handleSelectDay = (dayKey: string) => {
+  const handleSelectDay = useCallback((dayKey: string) => {
     setSelectedGregorianDayKey(dayKey);
-    void refreshCheckpointsForDay(dayKey);
-  };
+  }, []);
 
-  const handleReturnToToday = () => {
+  const handleReturnToToday = useCallback(() => {
     if (!todayGregorianDayKey) return;
     setSelectedGregorianDayKey(todayGregorianDayKey);
-    void refreshCheckpointsForDay(todayGregorianDayKey);
     const index = monthDayCards.findIndex((day) => day.gregorianKey === todayGregorianDayKey);
     if (index >= 0) {
       pendingDayScrollIndexRef.current = index;
       dayCardsListRef.current?.scrollToIndex({ index, animated: true });
     }
-  };
+  }, [monthDayCards, todayGregorianDayKey]);
 
-  const handleDayCardsScrollToIndexFailed = () => {
+  const handleDayCardsScrollToIndexFailed = useCallback(() => {
     const index = pendingDayScrollIndexRef.current;
     if (index == null) return;
     const invertedIndex = monthDayCards.length - 1 - index;
@@ -828,7 +906,36 @@ export default function TimelineScreen() {
     if (invertedIndex >= 0) {
       dayCardsListRef.current?.scrollToIndex({ index: invertedIndex, animated: true });
     }
-  };
+  }, [monthDayCards.length]);
+
+  useEffect(() => {
+    if (didInitialDayAutoScrollRef.current) return;
+    if (monthDayCards.length === 0) return;
+
+    const todayIndex = monthDayCards.findIndex((day) => day.gregorianKey === todayGregorianDayKey);
+    const selectedIndex = monthDayCards.findIndex(
+      (day) => day.gregorianKey === selectedGregorianDayKey
+    );
+    const targetIndex = todayIndex >= 0 ? todayIndex : selectedIndex;
+    if (targetIndex < 0) return;
+
+    pendingDayScrollIndexRef.current = targetIndex;
+    const timer = setTimeout(() => {
+      dayCardsListRef.current?.scrollToIndex({ index: targetIndex, animated: false });
+      didInitialDayAutoScrollRef.current = true;
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [monthDayCards, selectedGregorianDayKey, todayGregorianDayKey]);
+
+  const getDayCardItemLayout = useCallback(
+    (_data: ArrayLike<HijriMonthDayCard> | null | undefined, index: number) => ({
+      length: DAY_CARD_ITEM_WIDTH,
+      offset: DAY_CARD_ITEM_WIDTH * index,
+      index,
+    }),
+    []
+  );
 
   const openAddCheckpointModal = () => {
     setNewCheckpointName("");
@@ -1189,6 +1296,59 @@ export default function TimelineScreen() {
     }
   };
 
+  const renderDayCard = useCallback(
+    ({ item: day }: { item: HijriMonthDayCard }) => {
+      const selected = day.gregorianKey === selectedGregorianDayKey;
+      return (
+        <Pressable
+          style={[
+            styles.dayCard,
+            { borderColor: theme.dayCardBorder, backgroundColor: theme.dayCardBg },
+            selected && styles.dayCardSelected,
+            selected && {
+              borderColor: theme.dayCardSelectedBorder,
+              backgroundColor: theme.dayCardSelectedBg,
+            },
+            day.isToday && styles.dayCardToday,
+          ]}
+          onPress={() => handleSelectDay(day.gregorianKey)}
+        >
+          <Text
+            style={[
+              styles.dayCardWeekday,
+              { color: theme.textMuted },
+              selected && styles.dayCardWeekdaySelected,
+              selected && { color: theme.textPrimary },
+            ]}
+          >
+            {day.weekdayAr}
+          </Text>
+          <Text
+            style={[
+              styles.dayCardDay,
+              { color: theme.textPrimary },
+              selected && styles.dayCardDaySelected,
+              selected && { color: theme.textOnAccent },
+            ]}
+          >
+            {toArabicDigits(day.hijriDay)}
+          </Text>
+          <Text
+            style={[
+              styles.dayCardGregorianSmall,
+              { color: theme.textMuted },
+              selected && styles.dayCardGregorianSmallSelected,
+              selected && { color: theme.textSecondary },
+            ]}
+          >
+            {`${toArabicDigits(normalizeDayWithoutLeadingZero(day.gregorianDay))} ${day.gregorianMonthAr}`}
+          </Text>
+        </Pressable>
+      );
+    },
+    [handleSelectDay, selectedGregorianDayKey, theme.dayCardBg, theme.dayCardBorder, theme.dayCardSelectedBg, theme.dayCardSelectedBorder, theme.textMuted, theme.textOnAccent, theme.textPrimary, theme.textSecondary]
+  );
+
   const isDefaultTaskModal =
     selectedNotificationTarget?.type === "task" && Boolean(selectedNotificationTarget?.isDefault);
 
@@ -1201,7 +1361,7 @@ export default function TimelineScreen() {
     );
   }
 
-  if (!bootDelayDone || !fontsLoaded) {
+  if (!fontsLoaded) {
     return <StartScreen />;
   }
 
@@ -1219,74 +1379,27 @@ export default function TimelineScreen() {
           { backgroundColor: theme.topBarBackground, borderBottomColor: theme.topBarBorder },
         ]}
       >
-        <CalendarHeader
+        <MemoCalendarHeader
           dateInfo={dateInfo}
           locationLabel={locationLabel}
           totalPoints={totalPoints}
           theme={theme}
           resolvedTheme={resolvedTheme}
-          onToggleTheme={handleToggleTheme}
           onReturnToToday={handleReturnToToday}
-          onOpenNotificationDebug={() => navigation.navigate("NotificationDebug")}
+          onOpenSettings={() => navigation.navigate("Settings")}
         />
         <FlatList
           ref={dayCardsListRef}
           data={monthDayCards}
+          extraData={selectedGregorianDayKey}
           horizontal
           inverted
           showsHorizontalScrollIndicator={false}
+          getItemLayout={getDayCardItemLayout}
           keyExtractor={(day) => day.gregorianKey}
           onScrollToIndexFailed={handleDayCardsScrollToIndexFailed}
           contentContainerStyle={styles.dayCardsContainer}
-          renderItem={({ item: day }) => {
-            const selected = day.gregorianKey === selectedGregorianDayKey;
-            return (
-              <Pressable
-                style={[
-                  styles.dayCard,
-                  { borderColor: theme.dayCardBorder, backgroundColor: theme.dayCardBg },
-                  selected && styles.dayCardSelected,
-                  selected && {
-                    borderColor: theme.dayCardSelectedBorder,
-                    backgroundColor: theme.dayCardSelectedBg,
-                  },
-                  day.isToday && styles.dayCardToday,
-                ]}
-                onPress={() => handleSelectDay(day.gregorianKey)}
-              >
-                <Text
-                  style={[
-                    styles.dayCardWeekday,
-                    { color: theme.textMuted },
-                    selected && styles.dayCardWeekdaySelected,
-                    selected && { color: theme.textPrimary },
-                  ]}
-                >
-                  {day.weekdayAr}
-                </Text>
-                <Text
-                  style={[
-                    styles.dayCardDay,
-                    { color: theme.textPrimary },
-                    selected && styles.dayCardDaySelected,
-                    selected && { color: theme.textOnAccent },
-                  ]}
-                >
-                  {toArabicDigits(day.hijriDay)}
-                </Text>
-                <Text
-                  style={[
-                    styles.dayCardGregorianSmall,
-                    { color: theme.textMuted },
-                    selected && styles.dayCardGregorianSmallSelected,
-                    selected && { color: theme.textSecondary },
-                  ]}
-                >
-                  {`${toArabicDigits(normalizeDayWithoutLeadingZero(day.gregorianDay))} ${day.gregorianMonthAr}`}
-                </Text>
-              </Pressable>
-            );
-          }}
+          renderItem={renderDayCard}
         />
       </View>
       <FlatList
@@ -1310,7 +1423,7 @@ export default function TimelineScreen() {
         renderItem={({ item: cp }) => {
           const CpIcon = ICON_MAP[String(cp.icon || "").toLowerCase()];
           const color = cp.color || "#7B6CF6";
-          const isCheckpointExpanded = expandedCheckpoints.has(cp.id);
+          const isCheckpointExpanded = expandedCheckpointId === cp.id;
           const tasks = cp.tasks ?? [];
 
           return (
@@ -2179,7 +2292,7 @@ const styles = StyleSheet.create({
     gap: 8,
     maxWidth: "100%",
   },
-  themeIconButton: {
+  locationActionButton: {
     width: 30,
     height: 30,
     borderRadius: 15,
@@ -2591,3 +2704,4 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.bold,
   },
 });
+

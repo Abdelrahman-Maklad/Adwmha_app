@@ -59,6 +59,41 @@ const QURAN_REDIRECT_ALIASES: Array<
       quran: { surah: 18, mode: "full" },
     },
   ],
+  [
+    "\u0622\u064A\u0629 \u0627\u0644\u0643\u0631\u0633\u064A",
+    {
+      titleAr: "\u0622\u064A\u0629 \u0627\u0644\u0643\u0631\u0633\u064A",
+      quran: { surah: 2, mode: "single", ayah: 255 },
+    },
+  ],
+  [
+    "\u0627\u064A\u0629 \u0627\u0644\u0643\u0631\u0633\u064A",
+    {
+      titleAr: "\u0622\u064A\u0629 \u0627\u0644\u0643\u0631\u0633\u064A",
+      quran: { surah: 2, mode: "single", ayah: 255 },
+    },
+  ],
+  [
+    "ayat al kursi",
+    {
+      titleAr: "\u0622\u064A\u0629 \u0627\u0644\u0643\u0631\u0633\u064A",
+      quran: { surah: 2, mode: "single", ayah: 255 },
+    },
+  ],
+  [
+    "ayatul kursi",
+    {
+      titleAr: "\u0622\u064A\u0629 \u0627\u0644\u0643\u0631\u0633\u064A",
+      quran: { surah: 2, mode: "single", ayah: 255 },
+    },
+  ],
+  [
+    "ayatalkursi",
+    {
+      titleAr: "\u0622\u064A\u0629 \u0627\u0644\u0643\u0631\u0633\u064A",
+      quran: { surah: 2, mode: "single", ayah: 255 },
+    },
+  ],
 ];
 
 function buildAdhkarRedirectMap() {

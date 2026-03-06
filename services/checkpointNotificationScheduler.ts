@@ -1,6 +1,12 @@
-import * as Notifications from "expo-notifications";
+﻿import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
-import { getAppSetting, loadAllCheckpointsRaw, setAppSetting } from "../db/queries";
+import {
+  getAppSetting,
+  getPrayerAdhanSoundPreference,
+  loadAllCheckpointsRaw,
+  PrayerAdhanSound,
+  setAppSetting,
+} from "../db/queries";
 import {
   FALLBACK_TIMES,
   fetchPrayerTimesForDate,
@@ -22,6 +28,7 @@ export type CheckpointRule = {
 export type SchedulerSettings = {
   location: { latitude: number; longitude: number } | null;
   method: number;
+  prayerAdhanSound: PrayerAdhanSound;
   checkpointRules: CheckpointRule[];
 };
 
@@ -32,14 +39,14 @@ export type ScheduledCheckpointEvent = {
   fireAtUtcMs: number;
   title: string;
   body: string;
+  sound: PrayerAdhanSound;
 };
 
 export type EnsureReason =
   | "startup"
   | "app_active"
   | "checkpoint_settings_changed"
-  | "manual"
-  | "debug_refresh";
+  | "manual";
 
 export type EnsureResult = {
   didRebuild: boolean;
@@ -51,7 +58,8 @@ export type EnsureResult = {
   exactAlarmStatus: "granted" | "denied" | "unknown";
 };
 
-const PRAYER_CHANNEL_ID = "prayer";
+const PRAYER_CHANNEL_DEFAULT_ID = "prayer_default";
+const PRAYER_CHANNEL_ADHAN_ID = "prayer_adhan";
 const SCHEDULER_SCOPE = "checkpoint_48h_v1";
 const METHOD_DEFAULT = 5;
 const KEY_SCHEDULED_IDS = "notif_checkpoints_scheduled_ids_v1";
@@ -59,6 +67,14 @@ const KEY_LAST_PLANNED_DAY = "notif_checkpoints_last_planned_local_day_v1";
 const KEY_SETTINGS_HASH = "notif_checkpoints_settings_hash_v1";
 const KEY_PERMS_PROMPTED = "notif_permissions_prompted_v1";
 const PRAYER_LEAD_TIME_IDS = new Set(["cp_fajr", "cp_dhuhr", "cp_asr", "cp_maghrib", "cp_isha"]);
+const PRAYER_SOUND_CHECKPOINT_IDS = new Set([
+  "cp_fajr",
+  "cp_dhuhr",
+  "cp_asr",
+  "cp_maghrib",
+  "cp_isha",
+  "cp_lastthird",
+]);
 
 function toLocalDayKey(date: Date): string {
   const y = date.getFullYear();
@@ -139,10 +155,10 @@ function normalizeArabicDay(value: string): string {
   return value
     .trim()
     .toLowerCase()
-    .replaceAll("أ", "ا")
-    .replaceAll("إ", "ا")
-    .replaceAll("آ", "ا")
-    .replaceAll("ى", "ي");
+    .replaceAll("Ø£", "Ø§")
+    .replaceAll("Ø¥", "Ø§")
+    .replaceAll("Ø¢", "Ø§")
+    .replaceAll("Ù‰", "ÙŠ");
 }
 
 function getEnglishWeekday(date: Date): string {
@@ -203,6 +219,7 @@ function buildSettingsHash(settings: SchedulerSettings): string {
         }
       : null,
     method: settings.method,
+    prayerAdhanSound: settings.prayerAdhanSound,
     rules: normalizedRules,
   });
 }
@@ -223,9 +240,10 @@ async function saveScheduledIds(ids: string[]) {
 }
 
 async function getSchedulerSettings(): Promise<SchedulerSettings> {
-  const [allCheckpoints, lastLocation] = await Promise.all([
+  const [allCheckpoints, lastLocation, prayerAdhanSound] = await Promise.all([
     loadAllCheckpointsRaw(),
     getLastCachedLocation(),
+    getPrayerAdhanSoundPreference(),
   ]);
 
   const checkpointRules: CheckpointRule[] = allCheckpoints.map((cp: any) => ({
@@ -242,6 +260,7 @@ async function getSchedulerSettings(): Promise<SchedulerSettings> {
   return {
     location: lastLocation ? { latitude: lastLocation.lat, longitude: lastLocation.lng } : null,
     method: METHOD_DEFAULT,
+    prayerAdhanSound,
     checkpointRules,
   };
 }
@@ -295,10 +314,19 @@ async function getExactAlarmStatus(): Promise<"granted" | "denied" | "unknown"> 
 
 export async function ensurePrayerChannel(): Promise<void> {
   if (Platform.OS !== "android") return;
-  await Notifications.setNotificationChannelAsync(PRAYER_CHANNEL_ID, {
+  await Notifications.setNotificationChannelAsync(PRAYER_CHANNEL_DEFAULT_ID, {
     name: "Prayer reminders",
     importance: Notifications.AndroidImportance.MAX,
     sound: "default",
+    vibrationPattern: [0, 250, 250, 250],
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+  });
+
+  // If custom adhan sound is unavailable on the device, Android falls back to default.
+  await Notifications.setNotificationChannelAsync(PRAYER_CHANNEL_ADHAN_ID, {
+    name: "Prayer reminders (Adhan)",
+    importance: Notifications.AndroidImportance.MAX,
+    sound: "adhan.wav",
     vibrationPattern: [0, 250, 250, 250],
     lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
   });
@@ -313,20 +341,6 @@ export async function requestNotifPermissions(): Promise<{ granted: boolean; can
   const requested = await Notifications.requestPermissionsAsync();
   await setAppSetting(KEY_PERMS_PROMPTED, "1");
   return { granted: requested.granted, canAskAgain: Boolean(requested.canAskAgain) };
-}
-
-export async function computePrayerTimes(
-  date: Date,
-  settings: SchedulerSettings
-): Promise<{ fajr: Date; dhuhr: Date; asr: Date; maghrib: Date; isha: Date }> {
-  const times = await getPrayerTimesByDay(date, settings);
-  return {
-    fajr: toDateAtTime(date, times.fajr),
-    dhuhr: toDateAtTime(date, times.dhuhr),
-    asr: toDateAtTime(date, times.asr),
-    maghrib: toDateAtTime(date, times.maghrib),
-    isha: toDateAtTime(date, times.isha),
-  };
 }
 
 export async function buildNext48hSchedule(
@@ -366,8 +380,12 @@ export async function buildNext48hSchedule(
         name: rule.name,
         fireDate,
         fireAtUtcMs,
-        title: normalizeText(rule.notificationTitle, `تذكير: ${rule.name}`),
-        body: normalizeText(rule.notificationText, `حان وقت ${rule.name}`),
+        title: normalizeText(rule.notificationTitle, `ØªØ°ÙƒÙŠØ±: ${rule.name}`),
+        body: normalizeText(rule.notificationText, `Ø­Ø§Ù† ÙˆÙ‚Øª ${rule.name}`),
+        sound:
+          PRAYER_SOUND_CHECKPOINT_IDS.has(rule.checkpointId) && settings.prayerAdhanSound === "adhan"
+            ? "adhan"
+            : "default",
       });
     }
   }
@@ -393,13 +411,18 @@ async function scheduleEvents(events: ScheduledCheckpointEvent[]): Promise<strin
       content: {
         title: event.title,
         body: event.body,
-        sound: "default",
+        sound: event.sound === "adhan" ? "adhan.wav" : "default",
         data: {
           scope: SCHEDULER_SCOPE,
           checkpointId: event.checkpointId,
           fireAtUtcMs: event.fireAtUtcMs,
         },
-        ...(Platform.OS === "android" ? { channelId: PRAYER_CHANNEL_ID } : {}),
+        ...(Platform.OS === "android"
+          ? {
+              channelId:
+                event.sound === "adhan" ? PRAYER_CHANNEL_ADHAN_ID : PRAYER_CHANNEL_DEFAULT_ID,
+            }
+          : {}),
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -483,48 +506,6 @@ export async function ensureScheduleNext48h(reason: EnsureReason): Promise<Ensur
     settingsHash,
     permissionGranted: true,
     exactAlarmStatus,
-  };
-}
-
-export async function getCheckpointSchedulerDebugSnapshot() {
-  const now = new Date();
-  const settings = await getSchedulerSettings();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-  const [todayPrayer, tomorrowPrayer, events, scheduled, perms, channel, ids, day, hash] =
-    await Promise.all([
-      computePrayerTimes(today, settings),
-      computePrayerTimes(tomorrow, settings),
-      buildNext48hSchedule(now, settings),
-      Notifications.getAllScheduledNotificationsAsync(),
-      Notifications.getPermissionsAsync(),
-      Platform.OS === "android"
-        ? Notifications.getNotificationChannelAsync(PRAYER_CHANNEL_ID)
-        : Promise.resolve(null),
-      loadScheduledIds(),
-      getAppSetting(KEY_LAST_PLANNED_DAY),
-      getAppSetting(KEY_SETTINGS_HASH),
-    ]);
-
-  return {
-    nowIso: now.toISOString(),
-    timezone:
-      Intl.DateTimeFormat().resolvedOptions().timeZone ?? `UTC${-now.getTimezoneOffset() / 60}`,
-    todayPrayer,
-    tomorrowPrayer,
-    events,
-    scheduled,
-    persisted: {
-      idsCount: ids.length,
-      ids,
-      lastPlannedLocalDay: day ?? "",
-      settingsHash: hash ?? "",
-    },
-    permissionGranted: perms.granted,
-    canAskAgain: Boolean(perms.canAskAgain),
-    channelExists: Boolean(channel),
-    exactAlarmStatus: await getExactAlarmStatus(),
   };
 }
 
