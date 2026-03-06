@@ -408,7 +408,46 @@ function calculateLastThirdFromTimes(isha: string, fajr: string): string {
   return formatMinutes(ishaMinutes + (2 * nightDuration) / 3);
 }
 
+function parseDayKey(dayKey: string): Date | null {
+  const match = String(dayKey).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]) - 1;
+  const day = Number(match[3]);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return null;
+  return new Date(year, month, day, 0, 0, 0, 0);
+}
+
+function dateAtDayKeyTime(dayKey: string, hhmm: string): Date | null {
+  const baseDate = parseDayKey(dayKey);
+  const normalized = extractHHmm(hhmm);
+  if (!baseDate || !normalized) return null;
+  const [hour, minute] = normalized.split(":").map(Number);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return null;
+  const next = new Date(baseDate);
+  next.setHours(hour, minute, 0, 0);
+  return next;
+}
+
+function formatCountdownDuration(ms: number): string {
+  const clampedSeconds = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(clampedSeconds / 3600);
+  const minutes = Math.floor((clampedSeconds % 3600) / 60);
+  const seconds = clampedSeconds % 60;
+  return toArabicDigits(
+    `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+  );
+}
+
 const PRAYER_CHECKPOINT_IDS = new Set(["cp_fajr", "cp_dhuhr", "cp_asr", "cp_maghrib", "cp_isha"]);
+const PRAYER_COUNTDOWN_ORDER = [
+  { key: "fajr", label: "الفجر" },
+  { key: "sunrise", label: "الشروق" },
+  { key: "dhuhr", label: "الظهر" },
+  { key: "asr", label: "العصر" },
+  { key: "maghrib", label: "المغرب" },
+  { key: "isha", label: "العشاء" },
+] as const;
 
 function subtractOneMinute(hhmm: string): string {
   const normalized = extractHHmm(hhmm);
@@ -437,7 +476,7 @@ const WEEKDAY_OPTIONS = [
   { label: "الجمعة", value: "Friday" },
   { label: "السبت", value: "Saturday" },
 ];
-const DAY_CARD_ITEM_WIDTH = 68;
+const DAY_CARD_ITEM_WIDTH = 118;
 
 export default function TimelineScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -458,6 +497,8 @@ export default function TimelineScreen() {
     null
   );
   const [selectedDayTimes, setSelectedDayTimes] = useState<PrayerTimes | null>(null);
+  const [tomorrowDayTimes, setTomorrowDayTimes] = useState<PrayerTimes | null>(null);
+  const [countdownNowMs, setCountdownNowMs] = useState(() => Date.now());
 
   const [expandedCheckpointId, setExpandedCheckpointId] = useState<string | null>(null);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
@@ -509,6 +550,8 @@ export default function TimelineScreen() {
 
   const resolvedTheme = resolveThemePreference(themePreference);
   const theme = getThemeTokens(resolvedTheme);
+  const isSelectedDayToday =
+    Boolean(selectedGregorianDayKey) && selectedGregorianDayKey === todayGregorianDayKey;
 
   useEffect(() => {
     locationCoordsRef.current = locationCoords;
@@ -745,6 +788,62 @@ export default function TimelineScreen() {
     };
   }, [selectedGregorianDayKey, locationCoords]);
 
+  useEffect(() => {
+    if (!isSelectedDayToday || !selectedDayTimes || !todayGregorianDayKey) {
+      setTomorrowDayTimes(null);
+      return;
+    }
+
+    let active = true;
+    const todayDate = parseDayKey(todayGregorianDayKey);
+    if (!todayDate) {
+      setTomorrowDayTimes(null);
+      return;
+    }
+
+    const tomorrowDate = new Date(todayDate);
+    tomorrowDate.setDate(todayDate.getDate() + 1);
+    const tomorrowDayKey = gregorianDayKey(tomorrowDate);
+
+    void (async () => {
+      try {
+        const cached = await getPrayerTimesWithoutLocation(tomorrowDayKey);
+        if (active && cached) {
+          setTomorrowDayTimes(cached);
+        }
+
+        if (!locationCoords) {
+          if (active && !cached) setTomorrowDayTimes(null);
+          return;
+        }
+
+        const fresh = await fetchPrayerTimesForDate(
+          locationCoords.latitude,
+          locationCoords.longitude,
+          tomorrowDayKey
+        );
+        if (active) {
+          setTomorrowDayTimes(fresh ?? cached ?? null);
+        }
+      } catch {
+        if (active) setTomorrowDayTimes(null);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [isSelectedDayToday, locationCoords, selectedDayTimes, todayGregorianDayKey]);
+
+  useEffect(() => {
+    if (!isSelectedDayToday || !selectedDayTimes) return;
+    setCountdownNowMs(Date.now());
+    const timer = setInterval(() => {
+      setCountdownNowMs(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isSelectedDayToday, selectedDayTimes]);
+
   const totalPoints = useMemo(() => {
     let total = 0;
 
@@ -800,6 +899,80 @@ export default function TimelineScreen() {
       return String(a.id).localeCompare(String(b.id));
     });
   }, [checkpoints, selectedDayTimes]);
+
+  const nextPrayerSummary = useMemo(() => {
+    if (!selectedDayTimes || !selectedGregorianDayKey) return null;
+
+    const prayers = PRAYER_COUNTDOWN_ORDER.map((prayer) => {
+      const time = String(selectedDayTimes[prayer.key as keyof PrayerTimes] ?? "");
+      return {
+        key: prayer.key,
+        label: prayer.label,
+        time,
+        date: dateAtDayKeyTime(selectedGregorianDayKey, time),
+      };
+    }).filter(
+      (
+        item
+      ): item is {
+        key: (typeof PRAYER_COUNTDOWN_ORDER)[number]["key"];
+        label: (typeof PRAYER_COUNTDOWN_ORDER)[number]["label"];
+        time: string;
+        date: Date;
+      } => Boolean(item.date)
+    );
+
+    if (prayers.length === 0) return null;
+
+    const now = new Date(countdownNowMs);
+    let nextPrayer =
+      prayers.find((prayer) => prayer.date && prayer.date.getTime() > now.getTime()) ?? null;
+
+    let countdownTarget = nextPrayer?.date ?? null;
+    let countdownTime = nextPrayer?.time ?? null;
+
+    if (!nextPrayer && isSelectedDayToday) {
+      const tomorrowDayKey = gregorianDayKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
+      const fallbackTomorrowFajr = tomorrowDayTimes?.fajr ?? selectedDayTimes.fajr;
+      const fajrDate = dateAtDayKeyTime(tomorrowDayKey, fallbackTomorrowFajr);
+      nextPrayer = {
+        key: "fajr",
+        label: "الفجر",
+        time: fallbackTomorrowFajr,
+        date: fajrDate,
+      };
+      countdownTarget = fajrDate;
+      countdownTime = fallbackTomorrowFajr;
+    }
+
+    if (!nextPrayer) {
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      nextPrayer =
+        prayers.find((prayer) => parseMinutes(prayer.time) >= currentMinutes) ??
+        prayers[0];
+      countdownTarget = null;
+      countdownTime = nextPrayer.time;
+    }
+
+    return {
+      key: nextPrayer.key,
+      label: nextPrayer.label,
+      time: countdownTime ?? nextPrayer.time,
+      formattedTime: formatTimeByPreference(countdownTime ?? nextPrayer.time, timeFormatPreference),
+      countdownLabel:
+        isSelectedDayToday && countdownTarget
+          ? formatCountdownDuration(countdownTarget.getTime() - now.getTime())
+          : null,
+      isLive: Boolean(isSelectedDayToday && countdownTarget),
+    };
+  }, [
+    countdownNowMs,
+    isSelectedDayToday,
+    selectedDayTimes,
+    selectedGregorianDayKey,
+    timeFormatPreference,
+    tomorrowDayTimes,
+  ]);
 
   const isDefaultCheckpoint = (cp: any) => Boolean(cp?.default);
   const isDefaultTask = (task: any) => Boolean(task?.default);
@@ -1078,11 +1251,7 @@ export default function TimelineScreen() {
               }
 
               setCheckpoints((prev) => prev.filter((checkpoint: any) => checkpoint.id !== cp.id));
-              setExpandedCheckpoints((prev) => {
-                const next = new Set(prev);
-                next.delete(cp.id);
-                return next;
-              });
+              setExpandedCheckpointId((prev) => (prev === cp.id ? null : prev));
               setExpandedTasks((prev) => {
                 const next = new Set<string>();
                 prev.forEach((key) => {
@@ -1335,36 +1504,36 @@ export default function TimelineScreen() {
           ]}
           onPress={() => handleSelectDay(day.gregorianKey)}
         >
-          <Text
-            style={[
-              styles.dayCardWeekday,
-              { color: theme.textMuted },
-              selected && styles.dayCardWeekdaySelected,
-              selected && { color: theme.textPrimary },
-            ]}
-          >
-            {day.weekdayAr}
-          </Text>
-          <Text
-            style={[
-              styles.dayCardDay,
-              { color: theme.textPrimary },
-              selected && styles.dayCardDaySelected,
-              selected && { color: theme.textOnAccent },
-            ]}
-          >
-            {toArabicDigits(day.hijriDay)}
-          </Text>
-          <Text
-            style={[
-              styles.dayCardGregorianSmall,
-              { color: theme.textMuted },
-              selected && styles.dayCardGregorianSmallSelected,
-              selected && { color: theme.textSecondary },
-            ]}
-          >
-            {`${toArabicDigits(normalizeDayWithoutLeadingZero(day.gregorianDay))} ${day.gregorianMonthAr}`}
-          </Text>
+          <View style={styles.dayCardContent}>
+            <Text
+              style={[
+                styles.dayCardDay,
+                { color: theme.textPrimary },
+                selected && styles.dayCardDaySelected,
+                selected && { color: theme.textOnAccent },
+              ]}
+              numberOfLines={1}
+            >
+              {toArabicDigits(day.hijriDay)}
+            </Text>
+            <View
+              style={[
+                styles.dayCardDivider,
+                { backgroundColor: selected ? withAlpha(theme.textOnAccent, 0.35) : theme.dayCardBorder },
+              ]}
+            />
+            <Text
+              style={[
+                styles.dayCardGregorianSmall,
+                { color: theme.textMuted },
+                selected && styles.dayCardGregorianSmallSelected,
+                selected && { color: theme.textSecondary },
+              ]}
+              numberOfLines={1}
+            >
+              {`${toArabicDigits(normalizeDayWithoutLeadingZero(day.gregorianDay))} ${day.gregorianMonthAr}`}
+            </Text>
+          </View>
         </Pressable>
       );
     },
@@ -1410,6 +1579,47 @@ export default function TimelineScreen() {
           onReturnToToday={handleReturnToToday}
           onOpenSettings={() => navigation.navigate("Settings")}
         />
+        {nextPrayerSummary ? (
+          <View
+            style={[
+              styles.countdownCard,
+              { backgroundColor: theme.dayCardBg, borderColor: theme.dayCardBorder },
+            ]}
+          >
+            <View style={styles.countdownTopRow}>
+              <Text style={[styles.countdownLabel, { color: theme.textMuted }]}>
+                {nextPrayerSummary.isLive ? "الصلاة التالية" : "توقيت اليوم المحدد"}
+              </Text>
+              <Text style={[styles.countdownPrayerName, { color: theme.textPrimary }]}>
+                {nextPrayerSummary.label}
+              </Text>
+            </View>
+            <View style={styles.countdownBottomRow}>
+              <View style={styles.countdownTimeCluster}>
+                <Text style={[styles.countdownTime, { color: theme.textPrimary }]}>
+                  {nextPrayerSummary.formattedTime}
+                </Text>
+                <Text style={[styles.countdownCaption, { color: theme.textMuted }]}>
+                  {nextPrayerSummary.isLive ? "موعد الأذان" : "موعد الصلاة"}
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.countdownBadge,
+                  {
+                    backgroundColor: withAlpha(theme.iconPrimary, 0.12),
+                    borderColor: withAlpha(theme.iconPrimary, 0.18),
+                  },
+                ]}
+              >
+                <Clock size={15} color={theme.iconPrimary} />
+                <Text style={[styles.countdownBadgeValue, { color: theme.textPrimary }]}>
+                  {nextPrayerSummary.countdownLabel ?? nextPrayerSummary.formattedTime}
+                </Text>
+              </View>
+            </View>
+          </View>
+        ) : null}
         <FlatList
           ref={dayCardsListRef}
           data={monthDayCards}
@@ -1428,7 +1638,7 @@ export default function TimelineScreen() {
         style={{ flex: 1 }}
         data={checkpointsForSelectedDay}
         keyExtractor={(cp) => cp.id}
-        contentContainerStyle={{ paddingVertical: 18, paddingHorizontal: 14 }}
+        contentContainerStyle={{ paddingVertical: 20, paddingHorizontal: 14, paddingBottom: 28 }}
         ListHeaderComponent={
           <View style={styles.addCheckpointRow}>
             <Pressable
@@ -1442,16 +1652,39 @@ export default function TimelineScreen() {
             </Pressable>
           </View>
         }
-        renderItem={({ item: cp }) => {
+        renderItem={({ item: cp, index }) => {
           const CpIcon = ICON_MAP[String(cp.icon || "").toLowerCase()];
           const color = cp.color || "#7B6CF6";
           const isCheckpointExpanded = expandedCheckpointId === cp.id;
           const tasks = cp.tasks ?? [];
+          const isLastCheckpoint = index === checkpointsForSelectedDay.length - 1;
 
           return (
             <View style={styles.checkpointRow}>
               <View style={styles.timelineCol}>
-                <View style={[styles.line, { backgroundColor: withAlpha(color, 0.6) }]} />
+                <View
+                  style={[
+                    styles.timelineLineTop,
+                    { backgroundColor: index === 0 ? "transparent" : withAlpha(color, 0.3) },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.timelineDotOuter,
+                    {
+                      borderColor: withAlpha(color, 0.36),
+                      backgroundColor: withAlpha(color, 0.14),
+                    },
+                  ]}
+                >
+                  <View style={[styles.timelineDotInner, { backgroundColor: color }]} />
+                </View>
+                <View
+                  style={[
+                    styles.timelineLineBottom,
+                    { backgroundColor: isLastCheckpoint ? "transparent" : withAlpha(color, 0.3) },
+                  ]}
+                />
               </View>
 
               <View style={styles.contentCol}>
@@ -2180,7 +2413,7 @@ const styles = StyleSheet.create({
   fixedTopBarContainer: {
     paddingTop: 8,
     paddingHorizontal: 14,
-    paddingBottom: 8,
+    paddingBottom: 14,
     backgroundColor: "rgba(10,14,26,0.96)",
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.08)",
@@ -2190,20 +2423,54 @@ const styles = StyleSheet.create({
     height: 86,
   },
   dayCardsContainer: {
-    paddingBottom: 6,
+    paddingTop: 6,
+    paddingBottom: 4,
     paddingRight: 2,
   },
   dayCard: {
-    minWidth: 60,
+    width: DAY_CARD_ITEM_WIDTH - 8,
     borderWidth: 2,
     borderColor: "rgba(255,255,255,0.15)",
-    borderRadius: 25,
-    paddingVertical: 12,
-    paddingHorizontal: 4,
+    borderRadius: 18,
+    paddingVertical: 9,
+    paddingHorizontal: 10,
     backgroundColor: "rgba(255,255,255,0.04)",
-    alignItems: "center",
+    alignItems: "stretch",
     justifyContent: "center",
     marginLeft: 8,
+  },
+  dayCardContent: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  dayCardDay: {
+    color: "#F8FAFC",
+    fontSize: 16,
+    fontWeight: "800",
+    fontFamily: FONTS.bold,
+    lineHeight: 19,
+  },
+  dayCardDaySelected: {
+    color: "#FFFFFF",
+  },
+  dayCardGregorianSmall: {
+    color: "#94A3B8",
+    flexShrink: 1,
+    fontSize: 10,
+    lineHeight: 12,
+    fontFamily: FONTS.regular,
+    textAlign: "right",
+  },
+  dayCardGregorianSmallSelected: {
+    color: "#E2E8F0",
+  },
+  dayCardDivider: {
+    width: 1,
+    height: 14,
+    borderRadius: 999,
+    opacity: 0.85,
   },
   dayCardSelected: {
     borderColor: "#818CF8",
@@ -2212,37 +2479,69 @@ const styles = StyleSheet.create({
   dayCardToday: {
     borderColor: "rgba(34,197,94,0.7)",
   },
-  dayCardWeekday: {
-    color: "#94A3B8",
-    fontSize: 9,
-    marginBottom: 4,
-    fontFamily: FONTS.regular,
-  },
-  dayCardWeekdaySelected: {
-    color: "#E5E7EB",
-  },
-  dayCardDay: {
-    color: "#F8FAFC",
-    fontSize: 13,
-    fontWeight: "800",
-    fontFamily: FONTS.bold,
-  },
-  dayCardDaySelected: {
-    color: "#FFFFFF",
-  },
-  dayCardGregorianSmall: {
-    marginTop: 3,
-    color: "#94A3B8",
-    fontSize: 10,
-    lineHeight: 12,
-    fontFamily: FONTS.regular,
-  },
-  dayCardGregorianSmallSelected: {
-    color: "#E2E8F0",
-  },
   calendarHeader: {
     paddingBottom: 12,
     gap: 8,
+  },
+  countdownCard: {
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginBottom: 8,
+    gap: 6,
+  },
+  countdownTopRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  countdownBottomRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  countdownLabel: {
+    fontSize: 10,
+    fontFamily: FONTS.regular,
+    textAlign: "right",
+  },
+  countdownPrayerName: {
+    fontSize: 14,
+    fontFamily: FONTS.bold,
+    textAlign: "right",
+  },
+  countdownTimeCluster: {
+    alignItems: "flex-end",
+    gap: 1,
+  },
+  countdownTime: {
+    fontSize: 15,
+    fontFamily: FONTS.bold,
+    textAlign: "right",
+  },
+  countdownCaption: {
+    fontSize: 10,
+    fontFamily: FONTS.regular,
+    textAlign: "right",
+  },
+  countdownBadge: {
+    minWidth: 104,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+  },
+  countdownBadgeValue: {
+    fontSize: 13,
+    fontFamily: FONTS.bold,
+    textAlign: "center",
   },
   topRow: {
     display: "flex",
@@ -2356,23 +2655,42 @@ const styles = StyleSheet.create({
 
   checkpointRow: {
     flexDirection: "row-reverse",
-    alignItems: "flex-end",
-    gap: 10,
-    marginBottom: 18,
+    alignItems: "stretch",
+    gap: 8,
+    marginBottom: 22,
   },
 
   timelineCol: {
-    width: 40,
+    width: 28,
     alignItems: "center",
-    paddingTop: 8,
-    marginRight: 4,
+    paddingTop: 4,
+    paddingBottom: 2,
+    marginRight: 0,
   },
-  line: {
-    marginTop: 2,
+  timelineLineTop: {
+    width: 2,
+    minHeight: 8,
+    flex: 0,
+    borderRadius: 2,
+  },
+  timelineLineBottom: {
     width: 2,
     flex: 1,
     borderRadius: 2,
-    marginLeft: 4,
+    marginTop: 4,
+  },
+  timelineDotOuter: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  timelineDotInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
 
   contentCol: {
@@ -2382,13 +2700,13 @@ const styles = StyleSheet.create({
   checkpointHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    alignSelf: "flex-end"
+    gap: 6,
+    alignSelf: "flex-end",
   },
 
   headerPill: {
     borderWidth: 1,
-    borderRadius: 25,
+    borderRadius: 18,
     paddingVertical: 8,
     paddingHorizontal: 10,
     maxWidth: "100%",
@@ -2408,14 +2726,14 @@ const styles = StyleSheet.create({
     textAlign: "right",
   },
   headerTimeText: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 12,
+    fontFamily: FONTS.bold,
+    fontSize: 13,
     textAlign: "right",
   },
 
   tasksContainer: {
-    gap: 8,
-    paddingTop: 6,
+    gap: 10,
+    paddingTop: 8,
   },
 
   taskWrapper: {
@@ -2432,9 +2750,9 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     alignItems: "center",
     gap: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 25,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 22,
     borderWidth: 1,
   },
   checkboxOuter: {
