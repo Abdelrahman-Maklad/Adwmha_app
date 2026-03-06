@@ -141,14 +141,29 @@ function Accordion({
   children: React.ReactNode;
 }) {
   const [contentHeight, setContentHeight] = useState(0);
+  const [mounted, setMounted] = useState(expanded);
   const animHeight = useRef(new Animated.Value(expanded ? 1 : 0)).current;
 
   useEffect(() => {
-    Animated.timing(animHeight, {
+    if (expanded) {
+      setMounted(true);
+    }
+
+    const animation = Animated.timing(animHeight, {
       toValue: expanded ? 1 : 0,
       duration: 250,
       useNativeDriver: false,
-    }).start();
+    });
+
+    animation.start(({ finished }) => {
+      if (finished && !expanded) {
+        setMounted(false);
+      }
+    });
+
+    return () => {
+      animation.stop();
+    };
   }, [expanded, animHeight]);
 
   const handleLayout = (e: LayoutChangeEvent) => {
@@ -165,9 +180,11 @@ function Accordion({
 
   return (
     <Animated.View style={{ height, overflow: "hidden" }}>
-      <View style={{ position: "absolute", width: "100%" }} onLayout={handleLayout}>
-        {children}
-      </View>
+      {mounted ? (
+        <View style={{ position: "absolute", width: "100%" }} onLayout={handleLayout}>
+          {children}
+        </View>
+      ) : null}
     </Animated.View>
   );
 }
@@ -287,6 +304,179 @@ function CalendarHeader({
   );
 }
 const MemoCalendarHeader = React.memo(CalendarHeader);
+
+type NextPrayerSummary = {
+  key: string;
+  label: string;
+  time: string;
+  formattedTime: string;
+  countdownLabel: string | null;
+  isLive: boolean;
+};
+
+function buildNextPrayerSummary({
+  selectedDayTimes,
+  selectedGregorianDayKey,
+  isSelectedDayToday,
+  tomorrowDayTimes,
+  timeFormatPreference,
+  nowMs,
+}: {
+  selectedDayTimes: PrayerTimes | null;
+  selectedGregorianDayKey: string;
+  isSelectedDayToday: boolean;
+  tomorrowDayTimes: PrayerTimes | null;
+  timeFormatPreference: TimeFormatPreference;
+  nowMs: number;
+}): NextPrayerSummary | null {
+  if (!selectedDayTimes || !selectedGregorianDayKey) return null;
+
+  const prayers = PRAYER_COUNTDOWN_ORDER.map((prayer) => {
+    const time = String(selectedDayTimes[prayer.key as keyof PrayerTimes] ?? "");
+    return {
+      key: prayer.key,
+      label: prayer.label,
+      time,
+      date: dateAtDayKeyTime(selectedGregorianDayKey, time),
+    };
+  }).filter(
+    (
+      item
+    ): item is {
+      key: (typeof PRAYER_COUNTDOWN_ORDER)[number]["key"];
+      label: (typeof PRAYER_COUNTDOWN_ORDER)[number]["label"];
+      time: string;
+      date: Date;
+    } => Boolean(item.date)
+  );
+
+  if (prayers.length === 0) return null;
+
+  const now = new Date(nowMs);
+  let nextPrayer =
+    prayers.find((prayer) => prayer.date && prayer.date.getTime() > now.getTime()) ?? null;
+
+  let countdownTarget = nextPrayer?.date ?? null;
+  let countdownTime = nextPrayer?.time ?? null;
+
+  if (!nextPrayer && isSelectedDayToday) {
+    const tomorrowDayKey = gregorianDayKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
+    const fallbackTomorrowFajr = tomorrowDayTimes?.fajr ?? selectedDayTimes.fajr;
+    const fajrDate = dateAtDayKeyTime(tomorrowDayKey, fallbackTomorrowFajr);
+    nextPrayer = {
+      key: "fajr",
+      label: "الفجر",
+      time: fallbackTomorrowFajr,
+      date: fajrDate,
+    };
+    countdownTarget = fajrDate;
+    countdownTime = fallbackTomorrowFajr;
+  }
+
+  if (!nextPrayer) {
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    nextPrayer =
+      prayers.find((prayer) => parseMinutes(prayer.time) >= currentMinutes) ??
+      prayers[0];
+    countdownTarget = null;
+    countdownTime = nextPrayer.time;
+  }
+
+  return {
+    key: nextPrayer.key,
+    label: nextPrayer.label,
+    time: countdownTime ?? nextPrayer.time,
+    formattedTime: formatTimeByPreference(countdownTime ?? nextPrayer.time, timeFormatPreference),
+    countdownLabel:
+      isSelectedDayToday && countdownTarget
+        ? formatCountdownDuration(countdownTarget.getTime() - now.getTime())
+        : null,
+    isLive: Boolean(isSelectedDayToday && countdownTarget),
+  };
+}
+
+function CountdownCard({
+  selectedDayTimes,
+  selectedGregorianDayKey,
+  isSelectedDayToday,
+  tomorrowDayTimes,
+  timeFormatPreference,
+  theme,
+}: {
+  selectedDayTimes: PrayerTimes | null;
+  selectedGregorianDayKey: string;
+  isSelectedDayToday: boolean;
+  tomorrowDayTimes: PrayerTimes | null;
+  timeFormatPreference: TimeFormatPreference;
+  theme: ReturnType<typeof getThemeTokens>;
+}) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!isSelectedDayToday || !selectedDayTimes) return;
+    setNowMs(Date.now());
+    const timer = setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isSelectedDayToday, selectedDayTimes]);
+
+  const nextPrayerSummary = useMemo(
+    () =>
+      buildNextPrayerSummary({
+        selectedDayTimes,
+        selectedGregorianDayKey,
+        isSelectedDayToday,
+        tomorrowDayTimes,
+        timeFormatPreference,
+        nowMs,
+      }),
+    [
+      isSelectedDayToday,
+      nowMs,
+      selectedDayTimes,
+      selectedGregorianDayKey,
+      timeFormatPreference,
+      tomorrowDayTimes,
+    ]
+  );
+
+  if (!nextPrayerSummary) return null;
+
+  return (
+    <View style={[styles.countdownCard, { backgroundColor: theme.dayCardBg, borderColor: theme.dayCardBorder }]}>
+      <View style={styles.countdownCompactColumn}>
+        <View style={styles.countdownNextPrayerRow}>
+          <Landmark size={13} color={theme.iconPrimary} />
+          <Text style={[styles.countdownNextPrayerLine, { color: theme.textPrimary }]} numberOfLines={1}>
+            {`الصلاة القادمة: ${nextPrayerSummary.label}`}
+          </Text>
+        </View>
+        <View style={styles.countdownInfoRow}>
+          <View style={styles.countdownInfoItem}>
+            <View style={styles.countdownInfoLabelRow}>
+              <Clock size={12} color={theme.iconPrimary} />
+              <Text style={[styles.countdownInfoLabel, { color: theme.textMuted }]}>الوقت المتبقي</Text>
+            </View>
+            <Text style={[styles.countdownInfoValue, { color: theme.iconPrimary }]} numberOfLines={1}>
+              {nextPrayerSummary.countdownLabel ?? nextPrayerSummary.formattedTime}
+            </Text>
+          </View>
+          <View style={styles.countdownInfoItem}>
+            <View style={styles.countdownInfoLabelRow}>
+              <Bell size={12} color={theme.iconPrimary} />
+              <Text style={[styles.countdownInfoLabel, { color: theme.textMuted }]}>موعد الاذان</Text>
+            </View>
+            <Text style={[styles.countdownInfoValue, { color: theme.textPrimary }]} numberOfLines={1}>
+              {nextPrayerSummary.formattedTime}
+            </Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+const MemoCountdownCard = React.memo(CountdownCard);
 
 function formatTimeByPreference(hhmm: string, preference: TimeFormatPreference): string {
   const normalized = extractHHmm(hhmm);
@@ -511,7 +701,6 @@ export default function TimelineScreen() {
   );
   const [selectedDayTimes, setSelectedDayTimes] = useState<PrayerTimes | null>(null);
   const [tomorrowDayTimes, setTomorrowDayTimes] = useState<PrayerTimes | null>(null);
-  const [countdownNowMs, setCountdownNowMs] = useState(() => Date.now());
 
   const [expandedCheckpointId, setExpandedCheckpointId] = useState<string | null>(null);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
@@ -848,15 +1037,6 @@ export default function TimelineScreen() {
     };
   }, [isSelectedDayToday, locationCoords, selectedDayTimes, todayGregorianDayKey]);
 
-  useEffect(() => {
-    if (!isSelectedDayToday || !selectedDayTimes) return;
-    setCountdownNowMs(Date.now());
-    const timer = setInterval(() => {
-      setCountdownNowMs(Date.now());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [isSelectedDayToday, selectedDayTimes]);
-
   const totalPoints = useMemo(() => {
     let total = 0;
 
@@ -912,80 +1092,6 @@ export default function TimelineScreen() {
       return String(a.id).localeCompare(String(b.id));
     });
   }, [checkpoints, selectedDayTimes]);
-
-  const nextPrayerSummary = useMemo(() => {
-    if (!selectedDayTimes || !selectedGregorianDayKey) return null;
-
-    const prayers = PRAYER_COUNTDOWN_ORDER.map((prayer) => {
-      const time = String(selectedDayTimes[prayer.key as keyof PrayerTimes] ?? "");
-      return {
-        key: prayer.key,
-        label: prayer.label,
-        time,
-        date: dateAtDayKeyTime(selectedGregorianDayKey, time),
-      };
-    }).filter(
-      (
-        item
-      ): item is {
-        key: (typeof PRAYER_COUNTDOWN_ORDER)[number]["key"];
-        label: (typeof PRAYER_COUNTDOWN_ORDER)[number]["label"];
-        time: string;
-        date: Date;
-      } => Boolean(item.date)
-    );
-
-    if (prayers.length === 0) return null;
-
-    const now = new Date(countdownNowMs);
-    let nextPrayer =
-      prayers.find((prayer) => prayer.date && prayer.date.getTime() > now.getTime()) ?? null;
-
-    let countdownTarget = nextPrayer?.date ?? null;
-    let countdownTime = nextPrayer?.time ?? null;
-
-    if (!nextPrayer && isSelectedDayToday) {
-      const tomorrowDayKey = gregorianDayKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
-      const fallbackTomorrowFajr = tomorrowDayTimes?.fajr ?? selectedDayTimes.fajr;
-      const fajrDate = dateAtDayKeyTime(tomorrowDayKey, fallbackTomorrowFajr);
-      nextPrayer = {
-        key: "fajr",
-        label: "الفجر",
-        time: fallbackTomorrowFajr,
-        date: fajrDate,
-      };
-      countdownTarget = fajrDate;
-      countdownTime = fallbackTomorrowFajr;
-    }
-
-    if (!nextPrayer) {
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
-      nextPrayer =
-        prayers.find((prayer) => parseMinutes(prayer.time) >= currentMinutes) ??
-        prayers[0];
-      countdownTarget = null;
-      countdownTime = nextPrayer.time;
-    }
-
-    return {
-      key: nextPrayer.key,
-      label: nextPrayer.label,
-      time: countdownTime ?? nextPrayer.time,
-      formattedTime: formatTimeByPreference(countdownTime ?? nextPrayer.time, timeFormatPreference),
-      countdownLabel:
-        isSelectedDayToday && countdownTarget
-          ? formatCountdownDuration(countdownTarget.getTime() - now.getTime())
-          : null,
-      isLive: Boolean(isSelectedDayToday && countdownTarget),
-    };
-  }, [
-    countdownNowMs,
-    isSelectedDayToday,
-    selectedDayTimes,
-    selectedGregorianDayKey,
-    timeFormatPreference,
-    tomorrowDayTimes,
-  ]);
 
   const prayerProgressDots = useMemo(() => {
     return PRAYER_PROGRESS_CHECKPOINTS.map((prayer) => {
@@ -1088,11 +1194,11 @@ export default function TimelineScreen() {
     setExpandedCheckpointId(bestId);
   }, [checkpointsForSelectedDay, selectedGregorianDayKey, todayGregorianDayKey]);
 
-  const toggleCheckpoint = (checkpointId: string) => {
+  const toggleCheckpoint = useCallback((checkpointId: string) => {
     setExpandedCheckpointId((prev) => (prev === checkpointId ? null : checkpointId));
-  };
+  }, []);
 
-  const toggleTask = (checkpointId: string, taskId: string) => {
+  const toggleTask = useCallback((checkpointId: string, taskId: string) => {
     const key = `${checkpointId}_${taskId}`;
     setExpandedTasks((prev) => {
       const next = new Set(prev);
@@ -1100,9 +1206,9 @@ export default function TimelineScreen() {
       else next.add(key);
       return next;
     });
-  };
+  }, []);
 
-  const toggleItemDone = async (itemId: string) => {
+  const toggleItemDone = useCallback(async (itemId: string) => {
     if (!selectedGregorianDayKey) return;
     const nextDone = !(doneState[itemId] ?? false);
 
@@ -1116,7 +1222,7 @@ export default function TimelineScreen() {
     } catch (e) {
       console.error("Failed to persist completion state:", e);
     }
-  };
+  }, [doneState, selectedGregorianDayKey]);
 
   const handleSelectDay = useCallback((dayKey: string) => {
     setSelectedGregorianDayKey(dayKey);
@@ -1633,48 +1739,25 @@ export default function TimelineScreen() {
               renderItem={renderDayCard}
             />
           </View>
-          {nextPrayerSummary ? (
-            <View
-              style={[
-                styles.countdownCard,
-              ]}
-            >
-              <View style={styles.countdownCompactColumn}>
-                <View style={styles.countdownNextPrayerRow}>
-                  <Landmark size={13} color={theme.iconPrimary} />
-                  <Text style={[styles.countdownNextPrayerLine, { color: theme.textPrimary }]} numberOfLines={1}>
-                    {`الصلاة القادمة: ${nextPrayerSummary.label}`}
-                  </Text>
-                </View>
-                <View style={styles.countdownInfoRow}>
-                  <View style={styles.countdownInfoItem}>
-                    <View style={styles.countdownInfoLabelRow}>
-                      <Clock size={12} color={theme.iconPrimary} />
-                      <Text style={[styles.countdownInfoLabel, { color: theme.textMuted }]}>الوقت المتبقي</Text>
-                    </View>
-                    <Text style={[styles.countdownInfoValue, { color: theme.iconPrimary }]} numberOfLines={1}>
-                      {nextPrayerSummary.countdownLabel ?? nextPrayerSummary.formattedTime}
-                    </Text>
-                  </View>
-                  <View style={styles.countdownInfoItem}>
-                    <View style={styles.countdownInfoLabelRow}>
-                      <Bell size={12} color={theme.iconPrimary} />
-                      <Text style={[styles.countdownInfoLabel, { color: theme.textMuted }]}>موعد الاذان</Text>
-                    </View>
-                    <Text style={[styles.countdownInfoValue, { color: theme.textPrimary }]} numberOfLines={1}>
-                      {nextPrayerSummary.formattedTime}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-          ) : null}
+          <MemoCountdownCard
+            selectedDayTimes={selectedDayTimes}
+            selectedGregorianDayKey={selectedGregorianDayKey}
+            isSelectedDayToday={isSelectedDayToday}
+            tomorrowDayTimes={tomorrowDayTimes}
+            timeFormatPreference={timeFormatPreference}
+            theme={theme}
+          />
         </View>
       </View>
       <FlatList
         style={{ flex: 1 }}
         data={checkpointsForSelectedDay}
         keyExtractor={(cp) => cp.id}
+        initialNumToRender={6}
+        maxToRenderPerBatch={6}
+        windowSize={9}
+        updateCellsBatchingPeriod={40}
+        removeClippedSubviews
         contentContainerStyle={{ paddingVertical: 20, paddingHorizontal: 14, paddingBottom: 28 }}
         ListHeaderComponent={
           <View style={styles.addCheckpointRow}>
