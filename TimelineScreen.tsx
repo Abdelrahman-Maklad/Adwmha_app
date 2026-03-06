@@ -440,6 +440,13 @@ function formatCountdownDuration(ms: number): string {
 }
 
 const PRAYER_CHECKPOINT_IDS = new Set(["cp_fajr", "cp_dhuhr", "cp_asr", "cp_maghrib", "cp_isha"]);
+const PRAYER_PROGRESS_CHECKPOINTS = [
+  { id: "cp_fajr", label: "الفجر" },
+  { id: "cp_dhuhr", label: "الظهر" },
+  { id: "cp_asr", label: "العصر" },
+  { id: "cp_maghrib", label: "المغرب" },
+  { id: "cp_isha", label: "العشاء" },
+] as const;
 const PRAYER_COUNTDOWN_ORDER = [
   { key: "fajr", label: "الفجر" },
   { key: "sunrise", label: "الشروق" },
@@ -476,7 +483,13 @@ const WEEKDAY_OPTIONS = [
   { label: "الجمعة", value: "Friday" },
   { label: "السبت", value: "Saturday" },
 ];
-const DAY_CARD_ITEM_WIDTH = 118;
+const DAY_CARD_PILL_HEIGHT = 34;
+const DAY_CARD_VERTICAL_SPACING = 6;
+const DAY_CARD_SLOT_HEIGHT = DAY_CARD_PILL_HEIGHT + DAY_CARD_VERTICAL_SPACING;
+const DAY_CARD_VISIBLE_PILLS = 2.5;
+const DAY_CARD_RAIL_HEIGHT =
+  DAY_CARD_PILL_HEIGHT * DAY_CARD_VISIBLE_PILLS +
+  DAY_CARD_VERTICAL_SPACING * Math.floor(DAY_CARD_VISIBLE_PILLS);
 
 export default function TimelineScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -974,6 +987,32 @@ export default function TimelineScreen() {
     tomorrowDayTimes,
   ]);
 
+  const prayerProgressDots = useMemo(() => {
+    return PRAYER_PROGRESS_CHECKPOINTS.map((prayer) => {
+      const checkpoint = checkpointsForSelectedDay.find((cp: any) => cp.id === prayer.id);
+      const tasks = checkpoint?.tasks ?? [];
+      const isComplete =
+        tasks.length > 0 &&
+        tasks.every((task: any) => {
+          if (!doneState[task.id]) return false;
+          const checklist = task.checklist ?? [];
+          return checklist.every((item: any) => Boolean(doneState[item.id]));
+        });
+
+      return {
+        ...prayer,
+        isComplete,
+      };
+    });
+  }, [checkpointsForSelectedDay, doneState]);
+
+  const prayerProgressById = useMemo(() => {
+    return prayerProgressDots.reduce<Record<string, boolean>>((acc, prayer) => {
+      acc[prayer.id] = prayer.isComplete;
+      return acc;
+    }, {});
+  }, [prayerProgressDots]);
+
   const isDefaultCheckpoint = (cp: any) => Boolean(cp?.default);
   const isDefaultTask = (task: any) => Boolean(task?.default);
   const canAddTaskToCheckpoint = (cp: any) =>
@@ -1096,12 +1135,10 @@ export default function TimelineScreen() {
   const handleDayCardsScrollToIndexFailed = useCallback(() => {
     const index = pendingDayScrollIndexRef.current;
     if (index == null) return;
-    const invertedIndex = monthDayCards.length - 1 - index;
-    pendingDayScrollIndexRef.current = invertedIndex;
-    if (invertedIndex >= 0) {
-      dayCardsListRef.current?.scrollToIndex({ index: invertedIndex, animated: true });
+    if (index >= 0) {
+      dayCardsListRef.current?.scrollToIndex({ index, animated: true });
     }
-  }, [monthDayCards.length]);
+  }, []);
 
   useEffect(() => {
     if (didInitialDayAutoScrollRef.current) return;
@@ -1125,8 +1162,8 @@ export default function TimelineScreen() {
 
   const getDayCardItemLayout = useCallback(
     (_data: ArrayLike<HijriMonthDayCard> | null | undefined, index: number) => ({
-      length: DAY_CARD_ITEM_WIDTH,
-      offset: DAY_CARD_ITEM_WIDTH * index,
+      length: DAY_CARD_SLOT_HEIGHT,
+      offset: DAY_CARD_SLOT_HEIGHT * index,
       index,
     }),
     []
@@ -1516,12 +1553,14 @@ export default function TimelineScreen() {
             >
               {toArabicDigits(day.hijriDay)}
             </Text>
-            <View
+            <Text
               style={[
-                styles.dayCardDivider,
-                { backgroundColor: selected ? withAlpha(theme.textOnAccent, 0.35) : theme.dayCardBorder },
+                styles.dayCardPipe,
+                { color: selected ? withAlpha(theme.textOnAccent, 0.6) : theme.textMuted },
               ]}
-            />
+            >
+              |
+            </Text>
             <Text
               style={[
                 styles.dayCardGregorianSmall,
@@ -1579,60 +1618,58 @@ export default function TimelineScreen() {
           onReturnToToday={handleReturnToToday}
           onOpenSettings={() => navigation.navigate("Settings")}
         />
-        {nextPrayerSummary ? (
-          <View
-            style={[
-              styles.countdownCard,
-              { backgroundColor: theme.dayCardBg, borderColor: theme.dayCardBorder },
-            ]}
-          >
-            <View style={styles.countdownTopRow}>
-              <Text style={[styles.countdownLabel, { color: theme.textMuted }]}>
-                {nextPrayerSummary.isLive ? "الصلاة التالية" : "توقيت اليوم المحدد"}
-              </Text>
-              <Text style={[styles.countdownPrayerName, { color: theme.textPrimary }]}>
-                {nextPrayerSummary.label}
-              </Text>
-            </View>
-            <View style={styles.countdownBottomRow}>
-              <View style={styles.countdownTimeCluster}>
-                <Text style={[styles.countdownTime, { color: theme.textPrimary }]}>
-                  {nextPrayerSummary.formattedTime}
-                </Text>
-                <Text style={[styles.countdownCaption, { color: theme.textMuted }]}>
-                  {nextPrayerSummary.isLive ? "موعد الأذان" : "موعد الصلاة"}
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.countdownBadge,
-                  {
-                    backgroundColor: withAlpha(theme.iconPrimary, 0.12),
-                    borderColor: withAlpha(theme.iconPrimary, 0.18),
-                  },
-                ]}
-              >
-                <Clock size={15} color={theme.iconPrimary} />
-                <Text style={[styles.countdownBadgeValue, { color: theme.textPrimary }]}>
-                  {nextPrayerSummary.countdownLabel ?? nextPrayerSummary.formattedTime}
-                </Text>
-              </View>
-            </View>
+        <View style={styles.topContentRow}>
+          <View style={styles.dayCardsRail}>
+            <FlatList
+              ref={dayCardsListRef}
+              data={monthDayCards}
+              extraData={selectedGregorianDayKey}
+              showsVerticalScrollIndicator={false}
+              getItemLayout={getDayCardItemLayout}
+              keyExtractor={(day) => day.gregorianKey}
+              onScrollToIndexFailed={handleDayCardsScrollToIndexFailed}
+              contentContainerStyle={styles.dayCardsContainer}
+              ItemSeparatorComponent={() => <View style={styles.dayCardSeparator} />}
+              renderItem={renderDayCard}
+            />
           </View>
-        ) : null}
-        <FlatList
-          ref={dayCardsListRef}
-          data={monthDayCards}
-          extraData={selectedGregorianDayKey}
-          horizontal
-          inverted
-          showsHorizontalScrollIndicator={false}
-          getItemLayout={getDayCardItemLayout}
-          keyExtractor={(day) => day.gregorianKey}
-          onScrollToIndexFailed={handleDayCardsScrollToIndexFailed}
-          contentContainerStyle={styles.dayCardsContainer}
-          renderItem={renderDayCard}
-        />
+          {nextPrayerSummary ? (
+            <View
+              style={[
+                styles.countdownCard,
+              ]}
+            >
+              <View style={styles.countdownCompactColumn}>
+                <View style={styles.countdownNextPrayerRow}>
+                  <Landmark size={13} color={theme.iconPrimary} />
+                  <Text style={[styles.countdownNextPrayerLine, { color: theme.textPrimary }]} numberOfLines={1}>
+                    {`الصلاة القادمة: ${nextPrayerSummary.label}`}
+                  </Text>
+                </View>
+                <View style={styles.countdownInfoRow}>
+                  <View style={styles.countdownInfoItem}>
+                    <View style={styles.countdownInfoLabelRow}>
+                      <Clock size={12} color={theme.iconPrimary} />
+                      <Text style={[styles.countdownInfoLabel, { color: theme.textMuted }]}>الوقت المتبقي</Text>
+                    </View>
+                    <Text style={[styles.countdownInfoValue, { color: theme.iconPrimary }]} numberOfLines={1}>
+                      {nextPrayerSummary.countdownLabel ?? nextPrayerSummary.formattedTime}
+                    </Text>
+                  </View>
+                  <View style={styles.countdownInfoItem}>
+                    <View style={styles.countdownInfoLabelRow}>
+                      <Bell size={12} color={theme.iconPrimary} />
+                      <Text style={[styles.countdownInfoLabel, { color: theme.textMuted }]}>موعد الاذان</Text>
+                    </View>
+                    <Text style={[styles.countdownInfoValue, { color: theme.textPrimary }]} numberOfLines={1}>
+                      {nextPrayerSummary.formattedTime}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          ) : null}
+        </View>
       </View>
       <FlatList
         style={{ flex: 1 }}
@@ -1765,6 +1802,20 @@ export default function TimelineScreen() {
                       <Text style={[styles.headerTimeText, { color }]}>
                         {formatTimeByPreference(cp.time, timeFormatPreference)}
                       </Text>
+
+                      {PRAYER_CHECKPOINT_IDS.has(String(cp.id)) ? (
+                        <View
+                          style={[
+                            styles.headerPrayerDot,
+                            prayerProgressById[String(cp.id)]
+                              ? { backgroundColor: color, borderColor: color }
+                              : {
+                                  backgroundColor: "transparent",
+                                  borderColor: withAlpha(theme.textMuted, 0.35),
+                                },
+                          ]}
+                        />
+                      ) : null}
                     </View>
                   </Pressable>
                 </View>
@@ -2422,55 +2473,67 @@ const styles = StyleSheet.create({
     width: 86,
     height: 86,
   },
+  topContentRow: {
+    flexDirection: "row-reverse",
+    alignItems: "stretch",
+    gap: 8,
+  },
+  dayCardsRail: {
+    width: 86,
+    height: DAY_CARD_RAIL_HEIGHT,
+    maxHeight: DAY_CARD_RAIL_HEIGHT,
+    alignSelf: "flex-start",
+    overflow: "hidden",
+  },
   dayCardsContainer: {
-    paddingTop: 6,
-    paddingBottom: 4,
-    paddingRight: 2,
+    paddingTop: 0,
+    paddingBottom: 0,
+  },
+  dayCardSeparator: {
+    height: DAY_CARD_VERTICAL_SPACING,
   },
   dayCard: {
-    width: DAY_CARD_ITEM_WIDTH - 8,
+    height: DAY_CARD_PILL_HEIGHT,
     borderWidth: 2,
     borderColor: "rgba(255,255,255,0.15)",
-    borderRadius: 18,
-    paddingVertical: 9,
-    paddingHorizontal: 10,
+    borderRadius: 16,
+    paddingVertical: 0,
+    paddingHorizontal: 8,
     backgroundColor: "rgba(255,255,255,0.04)",
     alignItems: "stretch",
     justifyContent: "center",
-    marginLeft: 8,
   },
   dayCardContent: {
     flexDirection: "row-reverse",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
+    justifyContent: "center",
+    gap: 3,
   },
   dayCardDay: {
     color: "#F8FAFC",
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "800",
     fontFamily: FONTS.bold,
-    lineHeight: 19,
+    lineHeight: 16,
+    textAlign: "center",
   },
   dayCardDaySelected: {
     color: "#FFFFFF",
   },
   dayCardGregorianSmall: {
     color: "#94A3B8",
-    flexShrink: 1,
-    fontSize: 10,
-    lineHeight: 12,
+    fontSize: 8,
+    lineHeight: 10,
     fontFamily: FONTS.regular,
-    textAlign: "right",
+    textAlign: "center",
   },
   dayCardGregorianSmallSelected: {
     color: "#E2E8F0",
   },
-  dayCardDivider: {
-    width: 1,
-    height: 14,
-    borderRadius: 999,
-    opacity: 0.85,
+  dayCardPipe: {
+    fontSize: 10,
+    fontFamily: FONTS.semiBold,
+    lineHeight: 12,
   },
   dayCardSelected: {
     borderColor: "#818CF8",
@@ -2484,62 +2547,55 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   countdownCard: {
-    borderWidth: 1,
-    borderRadius: 18,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    marginBottom: 8,
-    gap: 6,
+    flex: 1,
+    height: DAY_CARD_RAIL_HEIGHT,
+    maxHeight: DAY_CARD_RAIL_HEIGHT,
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    justifyContent: "center",
   },
-  countdownTopRow: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
+  countdownCompactColumn: {
+    flex: 1,
+    justifyContent: "center",
+    gap: 10,
   },
-  countdownBottomRow: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  countdownLabel: {
-    fontSize: 10,
-    fontFamily: FONTS.regular,
-    textAlign: "right",
-  },
-  countdownPrayerName: {
-    fontSize: 14,
-    fontFamily: FONTS.bold,
-    textAlign: "right",
-  },
-  countdownTimeCluster: {
-    alignItems: "flex-end",
-    gap: 1,
-  },
-  countdownTime: {
-    fontSize: 15,
-    fontFamily: FONTS.bold,
-    textAlign: "right",
-  },
-  countdownCaption: {
-    fontSize: 10,
-    fontFamily: FONTS.regular,
-    textAlign: "right",
-  },
-  countdownBadge: {
-    minWidth: 104,
+  countdownNextPrayerRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingVertical: 7,
-    paddingHorizontal: 10,
+    gap: 4,
   },
-  countdownBadgeValue: {
+  countdownNextPrayerLine: {
     fontSize: 13,
+    fontFamily: FONTS.bold,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  countdownInfoRow: {
+    flexDirection: "row-reverse",
+    alignItems: "stretch",
+    gap: 4,
+  },
+  countdownInfoItem: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  countdownInfoLabelRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+  },
+  countdownInfoLabel: {
+    fontSize: 12,
+    fontFamily: FONTS.semiBold,
+    textAlign: "center",
+    lineHeight: 14,
+  },
+  countdownInfoValue: {
+    fontSize: 14,
     fontFamily: FONTS.bold,
     textAlign: "center",
   },
@@ -2729,6 +2785,12 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.bold,
     fontSize: 13,
     textAlign: "right",
+  },
+  headerPrayerDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    borderWidth: 1,
   },
 
   tasksContainer: {
