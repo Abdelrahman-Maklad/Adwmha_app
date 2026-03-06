@@ -402,6 +402,7 @@ function CountdownCard({
   tomorrowDayTimes,
   timeFormatPreference,
   theme,
+  onAddCheckpoint,
 }: {
   selectedDayTimes: PrayerTimes | null;
   selectedGregorianDayKey: string;
@@ -409,6 +410,7 @@ function CountdownCard({
   tomorrowDayTimes: PrayerTimes | null;
   timeFormatPreference: TimeFormatPreference;
   theme: ReturnType<typeof getThemeTokens>;
+  onAddCheckpoint: () => void;
 }) {
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -444,34 +446,66 @@ function CountdownCard({
   if (!nextPrayerSummary) return null;
 
   return (
-    <View style={[styles.countdownCard, { backgroundColor: theme.dayCardBg, borderColor: theme.dayCardBorder }]}>
-      <View style={styles.countdownCompactColumn}>
-        <View style={styles.countdownNextPrayerRow}>
-          <Landmark size={13} color={theme.iconPrimary} />
-          <Text style={[styles.countdownNextPrayerLine, { color: theme.textPrimary }]} numberOfLines={1}>
-            {`الصلاة القادمة: ${nextPrayerSummary.label}`}
-          </Text>
-        </View>
-        <View style={styles.countdownInfoRow}>
-          <View style={styles.countdownInfoItem}>
-            <View style={styles.countdownInfoLabelRow}>
-              <Clock size={12} color={theme.iconPrimary} />
-              <Text style={[styles.countdownInfoLabel, { color: theme.textMuted }]}>الوقت المتبقي</Text>
-            </View>
-            <Text style={[styles.countdownInfoValue, { color: theme.iconPrimary }]} numberOfLines={1}>
-              {nextPrayerSummary.countdownLabel ?? nextPrayerSummary.formattedTime}
+    <View
+      style={[
+        styles.countdownCard,
+      ]}
+    >
+      <View style={styles.countdownTopRow}>
+        <View style={styles.countdownInlineItem}>
+          <Landmark size={12} color={theme.iconPrimary} />
+          <View style={styles.countdownInlineTextGroup}>
+            <Text style={[styles.countdownInlineLabel, { color: theme.textMuted }]} numberOfLines={1}>
+              الصلاة القادمة:
+            </Text>
+            <Text style={[styles.countdownInlineValue, { color: theme.textPrimary }]} numberOfLines={1}>
+              {nextPrayerSummary.label}
             </Text>
           </View>
-          <View style={styles.countdownInfoItem}>
-            <View style={styles.countdownInfoLabelRow}>
-              <Bell size={12} color={theme.iconPrimary} />
-              <Text style={[styles.countdownInfoLabel, { color: theme.textMuted }]}>موعد الاذان</Text>
-            </View>
-            <Text style={[styles.countdownInfoValue, { color: theme.textPrimary }]} numberOfLines={1}>
+        </View>
+        <View style={styles.countdownInlineItem}>
+          <Bell size={11} color={theme.iconPrimary} />
+          <View style={styles.countdownInlineTextGroup}>
+            <Text style={[styles.countdownInlineLabel, { color: theme.textMuted }]} numberOfLines={1}>
+              موعد الاذان:
+            </Text>
+            <Text style={[styles.countdownInlineValue, { color: theme.textPrimary }]} numberOfLines={1}>
               {nextPrayerSummary.formattedTime}
             </Text>
           </View>
         </View>
+      </View>
+      <View style={styles.countdownBottomRow}>
+        <View
+          style={[
+            styles.countdownInlineItem,
+            styles.countdownInlineItemSingle,
+            { borderColor: withAlpha(theme.dayCardBorder, 0.28) },
+          ]}
+        >
+          <Clock size={11} color={theme.iconPrimary} />
+          <View style={[styles.countdownInlineTextGroup, styles.countdownInlineTextGroupSingle]}>
+            <Text style={[styles.countdownInlineLabel, { color: theme.textMuted }]} numberOfLines={1}>
+              الوقت المتبقي:
+            </Text>
+            <Text style={[styles.countdownInlineValue, { color: theme.iconPrimary }]} numberOfLines={1}>
+              {nextPrayerSummary.countdownLabel ?? nextPrayerSummary.formattedTime}
+            </Text>
+          </View>
+        </View>
+        <Pressable
+          style={[
+            styles.countdownAddButton,
+            {
+              borderColor: theme.actionButtonBorder,
+              backgroundColor: theme.actionButtonBg,
+            },
+          ]}
+          onPress={onAddCheckpoint}
+        >
+          <Plus size={13} color={theme.iconPrimary} />
+          <Text style={[styles.countdownAddButtonText, { color: theme.textPrimary }]}>إضافة مرحلة</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -674,12 +708,10 @@ const WEEKDAY_OPTIONS = [
   { label: "السبت", value: "Saturday" },
 ];
 const DAY_CARD_PILL_HEIGHT = 34;
-const DAY_CARD_VERTICAL_SPACING = 6;
-const DAY_CARD_SLOT_HEIGHT = DAY_CARD_PILL_HEIGHT + DAY_CARD_VERTICAL_SPACING;
-const DAY_CARD_VISIBLE_PILLS = 2.5;
-const DAY_CARD_RAIL_HEIGHT =
-  DAY_CARD_PILL_HEIGHT * DAY_CARD_VISIBLE_PILLS +
-  DAY_CARD_VERTICAL_SPACING * Math.floor(DAY_CARD_VISIBLE_PILLS);
+const DAY_CARD_PILL_WIDTH = 112;
+const DAY_CARD_HORIZONTAL_SPACING = 6;
+const DAY_CARD_SLOT_WIDTH = DAY_CARD_PILL_WIDTH + DAY_CARD_HORIZONTAL_SPACING;
+const DAY_CARD_RAIL_HEIGHT = DAY_CARD_PILL_HEIGHT + 8;
 
 export default function TimelineScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -867,7 +899,6 @@ export default function TimelineScreen() {
         void (async () => {
           try {
             await seedIfEmpty(result.times, result.lastThirdTime);
-            await ensureScheduleNext48h("startup");
           } catch (startupError) {
             console.warn("Startup background setup failed:", startupError);
           }
@@ -1268,8 +1299,8 @@ export default function TimelineScreen() {
 
   const getDayCardItemLayout = useCallback(
     (_data: ArrayLike<HijriMonthDayCard> | null | undefined, index: number) => ({
-      length: DAY_CARD_SLOT_HEIGHT,
-      offset: DAY_CARD_SLOT_HEIGHT * index,
+      length: DAY_CARD_SLOT_WIDTH,
+      offset: DAY_CARD_SLOT_WIDTH * index,
       index,
     }),
     []
@@ -1725,12 +1756,22 @@ export default function TimelineScreen() {
           onOpenSettings={() => navigation.navigate("Settings")}
         />
         <View style={styles.topContentRow}>
+          <MemoCountdownCard
+            selectedDayTimes={selectedDayTimes}
+            selectedGregorianDayKey={selectedGregorianDayKey}
+            isSelectedDayToday={isSelectedDayToday}
+            tomorrowDayTimes={tomorrowDayTimes}
+            timeFormatPreference={timeFormatPreference}
+            theme={theme}
+            onAddCheckpoint={openAddCheckpointModal}
+          />
           <View style={styles.dayCardsRail}>
             <FlatList
               ref={dayCardsListRef}
               data={monthDayCards}
               extraData={selectedGregorianDayKey}
-              showsVerticalScrollIndicator={false}
+              horizontal
+              showsHorizontalScrollIndicator={false}
               getItemLayout={getDayCardItemLayout}
               keyExtractor={(day) => day.gregorianKey}
               onScrollToIndexFailed={handleDayCardsScrollToIndexFailed}
@@ -1739,14 +1780,6 @@ export default function TimelineScreen() {
               renderItem={renderDayCard}
             />
           </View>
-          <MemoCountdownCard
-            selectedDayTimes={selectedDayTimes}
-            selectedGregorianDayKey={selectedGregorianDayKey}
-            isSelectedDayToday={isSelectedDayToday}
-            tomorrowDayTimes={tomorrowDayTimes}
-            timeFormatPreference={timeFormatPreference}
-            theme={theme}
-          />
         </View>
       </View>
       <FlatList
@@ -1759,19 +1792,6 @@ export default function TimelineScreen() {
         updateCellsBatchingPeriod={40}
         removeClippedSubviews
         contentContainerStyle={{ paddingVertical: 20, paddingHorizontal: 14, paddingBottom: 28 }}
-        ListHeaderComponent={
-          <View style={styles.addCheckpointRow}>
-            <Pressable
-              style={[
-                styles.addCheckpointButton,
-                { borderColor: theme.actionButtonBorder, backgroundColor: theme.actionButtonBg },
-              ]}
-              onPress={openAddCheckpointModal}
-            >
-              <Plus size={16} color={theme.iconPrimary} />
-            </Pressable>
-          </View>
-        }
         renderItem={({ item: cp, index }) => {
           const CpIcon = ICON_MAP[String(cp.icon || "").toLowerCase()];
           const color = cp.color || "#7B6CF6";
@@ -2521,33 +2541,10 @@ const styles = StyleSheet.create({
   },
   title: { color: "white", fontSize: 18, marginTop: 16 },
   errText: { color: "#FCA5A5", marginTop: 10 },
-  addCheckpointRow: {
-    alignItems: "flex-end",
-    marginBottom: 6,
-  },
-  addCheckpointButton: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 8,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderRadius: 999,
-    paddingVertical: 4,
-    paddingHorizontal: 14,
-  },
-  addCheckpointButtonText: {
-    color: "#E5E7EB",
-    fontSize: 13,
-    fontWeight: "700",
-    fontFamily: FONTS.semiBold,
-    
-  },
-
   fixedTopBarContainer: {
-    paddingTop: 8,
+    paddingTop: 4,
     paddingHorizontal: 14,
-    paddingBottom: 14,
+    paddingBottom: 10,
     backgroundColor: "rgba(10,14,26,0.96)",
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.08)",
@@ -2557,27 +2554,26 @@ const styles = StyleSheet.create({
     height: 86,
   },
   topContentRow: {
-    flexDirection: "row-reverse",
+    flexDirection: "column",
     alignItems: "stretch",
-    gap: 8,
+    gap: 5,
   },
   dayCardsRail: {
-    width: 86,
+    width: "100%",
     height: DAY_CARD_RAIL_HEIGHT,
     maxHeight: DAY_CARD_RAIL_HEIGHT,
-    alignSelf: "flex-start",
     overflow: "hidden",
   },
   dayCardsContainer: {
-    paddingTop: 0,
-    paddingBottom: 0,
+    paddingHorizontal: 2,
   },
   dayCardSeparator: {
-    height: DAY_CARD_VERTICAL_SPACING,
+    width: DAY_CARD_HORIZONTAL_SPACING,
   },
   dayCard: {
+    width: DAY_CARD_PILL_WIDTH,
     height: DAY_CARD_PILL_HEIGHT,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: "rgba(255,255,255,0.15)",
     borderRadius: 16,
     paddingVertical: 0,
@@ -2626,60 +2622,80 @@ const styles = StyleSheet.create({
     borderColor: "rgba(34,197,94,0.7)",
   },
   calendarHeader: {
-    paddingBottom: 12,
-    gap: 8,
+    paddingBottom: 6,
+    gap: 5,
   },
   countdownCard: {
-    flex: 1,
-    height: DAY_CARD_RAIL_HEIGHT,
-    maxHeight: DAY_CARD_RAIL_HEIGHT,
-    paddingVertical: 3,
+    minHeight: 44,
+    paddingVertical: 4,
     paddingHorizontal: 6,
     justifyContent: "center",
   },
-  countdownCompactColumn: {
-    flex: 1,
-    justifyContent: "center",
-    gap: 10,
-  },
-  countdownNextPrayerRow: {
+  countdownTopRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
     gap: 4,
+    marginBottom: 2,
   },
-  countdownNextPrayerLine: {
-    fontSize: 13,
-    fontFamily: FONTS.bold,
-    textAlign: "center",
-    lineHeight: 20,
-  },
-  countdownInfoRow: {
+  countdownBottomRow: {
     flexDirection: "row-reverse",
-    alignItems: "stretch",
-    gap: 4,
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 6,
   },
-  countdownInfoItem: {
+  countdownInlineItem: {
     flex: 1,
     minWidth: 0,
+    flexDirection: "row-reverse",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "flex-start",
+    gap: 3,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
   },
-  countdownInfoLabelRow: {
+  countdownInlineItemSingle: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 999,
+    justifyContent: "flex-start",
+  },
+  countdownInlineTextGroup: {
+    flex: 1,
+    flexDirection: "row-reverse",
+    alignItems: "baseline",
+    justifyContent: "flex-start",
+    gap: 4,
+    minWidth: 0,
+  },
+  countdownInlineTextGroupSingle: {
+    justifyContent: "flex-start",
+  },
+  countdownInlineLabel: {
+    fontSize: 10,
+    fontFamily: FONTS.semiBold,
+    textAlign: "right",
+    flexShrink: 1,
+  },
+  countdownInlineValue: {
+    fontSize: 14,
+    fontFamily: FONTS.bold,
+    textAlign: "right",
+    flexShrink: 1,
+  },
+  countdownAddButton: {
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "center",
-    gap: 3,
+    gap: 5,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
   },
-  countdownInfoLabel: {
-    fontSize: 12,
+  countdownAddButtonText: {
+    fontSize: 11,
     fontFamily: FONTS.semiBold,
-    textAlign: "center",
-    lineHeight: 14,
-  },
-  countdownInfoValue: {
-    fontSize: 14,
-    fontFamily: FONTS.bold,
     textAlign: "center",
   },
   topRow: {
@@ -2780,7 +2796,7 @@ const styles = StyleSheet.create({
   },
   hijriDate: {
     color: "#E5E7EB",
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: "700",
     fontFamily: FONTS.bold,
     textAlign: "right",
@@ -2845,7 +2861,7 @@ const styles = StyleSheet.create({
 
   headerPill: {
     borderWidth: 1,
-    borderRadius: 18,
+    borderRadius: 999,
     paddingVertical: 8,
     paddingHorizontal: 10,
     maxWidth: "100%",
@@ -2897,7 +2913,7 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 14,
     paddingHorizontal: 16,
-    borderRadius: 22,
+    borderRadius: 999,
     borderWidth: 1,
   },
   checkboxOuter: {

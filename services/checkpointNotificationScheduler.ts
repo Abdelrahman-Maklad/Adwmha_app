@@ -75,6 +75,7 @@ const PRAYER_SOUND_CHECKPOINT_IDS = new Set([
   "cp_isha",
   "cp_lastthird",
 ]);
+let pendingEnsureSchedulePromise: Promise<EnsureResult> | null = null;
 
 function toLocalDayKey(date: Date): string {
   const y = date.getFullYear();
@@ -434,7 +435,7 @@ async function scheduleEvents(events: ScheduledCheckpointEvent[]): Promise<strin
   return ids;
 }
 
-export async function ensureScheduleNext48h(reason: EnsureReason): Promise<EnsureResult> {
+async function runEnsureScheduleNext48h(reason: EnsureReason): Promise<EnsureResult> {
   await ensurePrayerChannel();
 
   const currentPermissions = await Notifications.getPermissionsAsync();
@@ -507,5 +508,17 @@ export async function ensureScheduleNext48h(reason: EnsureReason): Promise<Ensur
     permissionGranted: true,
     exactAlarmStatus,
   };
+}
+
+export async function ensureScheduleNext48h(reason: EnsureReason): Promise<EnsureResult> {
+  if (pendingEnsureSchedulePromise) {
+    return pendingEnsureSchedulePromise;
+  }
+
+  pendingEnsureSchedulePromise = runEnsureScheduleNext48h(reason).finally(() => {
+    pendingEnsureSchedulePromise = null;
+  });
+
+  return pendingEnsureSchedulePromise;
 }
 
