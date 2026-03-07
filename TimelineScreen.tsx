@@ -713,6 +713,24 @@ const DAY_CARD_HORIZONTAL_SPACING = 6;
 const DAY_CARD_SLOT_WIDTH = DAY_CARD_PILL_WIDTH + DAY_CARD_HORIZONTAL_SPACING;
 const DAY_CARD_RAIL_HEIGHT = DAY_CARD_PILL_HEIGHT + 8;
 
+function buildPrayerProgressById(
+  checkpointsForDay: any[],
+  completionState: Record<string, boolean>
+): Record<string, boolean> {
+  return PRAYER_PROGRESS_CHECKPOINTS.reduce<Record<string, boolean>>((acc, prayer) => {
+    const checkpoint = checkpointsForDay.find((cp: any) => cp.id === prayer.id);
+    const tasks = checkpoint?.tasks ?? [];
+    acc[prayer.id] =
+      tasks.length > 0 &&
+      tasks.every((task: any) => {
+        if (!completionState[task.id]) return false;
+        const checklist = task.checklist ?? [];
+        return checklist.every((item: any) => Boolean(completionState[item.id]));
+      });
+    return acc;
+  }, {});
+}
+
 export default function TimelineScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [fontsLoaded] = useFonts({
@@ -733,6 +751,9 @@ export default function TimelineScreen() {
   );
   const [selectedDayTimes, setSelectedDayTimes] = useState<PrayerTimes | null>(null);
   const [tomorrowDayTimes, setTomorrowDayTimes] = useState<PrayerTimes | null>(null);
+  const [dayPrayerProgressByDay, setDayPrayerProgressByDay] = useState<
+    Record<string, Record<string, boolean>>
+  >({});
 
   const [expandedCheckpointId, setExpandedCheckpointId] = useState<string | null>(null);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
@@ -779,6 +800,7 @@ export default function TimelineScreen() {
   const checkpointsRequestRef = useRef(0);
   const completionRequestRef = useRef(0);
   const timesRequestRef = useRef(0);
+  const dayPrayerProgressRequestRef = useRef(0);
   const locationCoordsRef = useRef<{ latitude: number; longitude: number } | null>(null);
   const selectedDayKeyRef = useRef("");
 
@@ -1022,6 +1044,39 @@ export default function TimelineScreen() {
   }, [selectedGregorianDayKey, locationCoords]);
 
   useEffect(() => {
+    if (monthDayCards.length === 0) {
+      setDayPrayerProgressByDay({});
+      return;
+    }
+
+    const requestId = ++dayPrayerProgressRequestRef.current;
+    let active = true;
+
+    void (async () => {
+      const entries = await Promise.all(
+        monthDayCards.map(async (day) => {
+          const [dayCheckpoints, dayCompletionState] = await Promise.all([
+            loadCheckpoints(day.gregorianKey),
+            loadCompletionStateByDay(day.gregorianKey),
+          ]);
+
+          return [
+            day.gregorianKey,
+            buildPrayerProgressById(dayCheckpoints, dayCompletionState),
+          ] as const;
+        })
+      );
+
+      if (!active || requestId !== dayPrayerProgressRequestRef.current) return;
+      setDayPrayerProgressByDay(Object.fromEntries(entries));
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [checkpoints, monthDayCards]);
+
+  useEffect(() => {
     if (!isSelectedDayToday || !selectedDayTimes || !todayGregorianDayKey) {
       setTomorrowDayTimes(null);
       return;
@@ -1242,10 +1297,15 @@ export default function TimelineScreen() {
   const toggleItemDone = useCallback(async (itemId: string) => {
     if (!selectedGregorianDayKey) return;
     const nextDone = !(doneState[itemId] ?? false);
-
-    setDoneState((prev) => ({
-      ...prev,
+    const nextDoneState = {
+      ...doneState,
       [itemId]: nextDone,
+    };
+
+    setDoneState(nextDoneState);
+    setDayPrayerProgressByDay((prev) => ({
+      ...prev,
+      [selectedGregorianDayKey]: buildPrayerProgressById(checkpointsForSelectedDay, nextDoneState),
     }));
 
     try {
@@ -1253,7 +1313,7 @@ export default function TimelineScreen() {
     } catch (e) {
       console.error("Failed to persist completion state:", e);
     }
-  }, [doneState, selectedGregorianDayKey]);
+  }, [checkpointsForSelectedDay, doneState, selectedGregorianDayKey]);
 
   const handleSelectDay = useCallback((dayKey: string) => {
     setSelectedGregorianDayKey(dayKey);
@@ -1664,6 +1724,7 @@ export default function TimelineScreen() {
   const renderDayCard = useCallback(
     ({ item: day }: { item: HijriMonthDayCard }) => {
       const selected = day.gregorianKey === selectedGregorianDayKey;
+      const prayerProgress = dayPrayerProgressByDay[day.gregorianKey] ?? {};
       return (
         <Pressable
           style={[
@@ -1710,10 +1771,44 @@ export default function TimelineScreen() {
               {`${toArabicDigits(normalizeDayWithoutLeadingZero(day.gregorianDay))} ${day.gregorianMonthAr}`}
             </Text>
           </View>
+          <View style={styles.dayCardPrayerDotsRow}>
+            {PRAYER_PROGRESS_CHECKPOINTS.map((prayer) => {
+              const isComplete = Boolean(prayerProgress[prayer.id]);
+              return (
+                <View
+                  key={`${day.gregorianKey}_${prayer.id}`}
+                  style={[
+                    styles.dayCardPrayerDot,
+                    {
+                      borderColor: selected
+                        ? withAlpha(theme.textOnAccent, isComplete ? 0.85 : 0.45)
+                        : withAlpha(theme.textMuted, isComplete ? 0.65 : 0.28),
+                    },
+                    isComplete && {
+                      backgroundColor: selected ? theme.textOnAccent : theme.iconPrimary,
+                    },
+                  ]}
+                />
+              );
+            })}
+          </View>
         </Pressable>
       );
     },
-    [handleSelectDay, selectedGregorianDayKey, theme.dayCardBg, theme.dayCardBorder, theme.dayCardSelectedBg, theme.dayCardSelectedBorder, theme.textMuted, theme.textOnAccent, theme.textPrimary, theme.textSecondary]
+    [
+      dayPrayerProgressByDay,
+      handleSelectDay,
+      selectedGregorianDayKey,
+      theme.dayCardBg,
+      theme.dayCardBorder,
+      theme.dayCardSelectedBg,
+      theme.dayCardSelectedBorder,
+      theme.iconPrimary,
+      theme.textMuted,
+      theme.textOnAccent,
+      theme.textPrimary,
+      theme.textSecondary,
+    ]
   );
 
   const isDefaultTaskModal =
@@ -2576,7 +2671,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: "rgba(255,255,255,0.15)",
     borderRadius: 16,
-    paddingVertical: 0,
+    paddingVertical: 3,
     paddingHorizontal: 8,
     backgroundColor: "rgba(255,255,255,0.04)",
     alignItems: "stretch",
@@ -2587,6 +2682,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 3,
+  },
+  dayCardPrayerDotsRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    marginTop: 3,
+  },
+  dayCardPrayerDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    backgroundColor: "transparent",
   },
   dayCardDay: {
     color: "#F8FAFC",
