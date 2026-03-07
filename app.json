@@ -2,7 +2,7 @@
   "expo": {
     "name": "Adomha",
     "slug": "Adomha",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/Group 1.png",
     "userInterfaceStyle": "light",
@@ -19,6 +19,7 @@
     "android": {
       "package": "com.chatgptsilica.Adomha",
       "icon": "./assets/Group 1.png",
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/Group 1.png",
         "backgroundColor": "#111827"
