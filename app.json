@@ -4,7 +4,7 @@
     "slug": "Adomha",
     "version": "1.1.0",
     "orientation": "portrait",
-    "icon": "./assets/Group 1.png",
+    "icon": "./assets/app-icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
     "splash": {
@@ -18,10 +18,10 @@
     },
     "android": {
       "package": "com.chatgptsilica.Adomha.dev",
-      "icon": "./assets/Group 1.png",
+      "icon": "./assets/app-icon.png",
       "versionCode": 3,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/Group 1.png",
+        "foregroundImage": "./assets/app-icon.png",
         "backgroundColor": "#111827"
       },
       "edgeToEdgeEnabled": true,

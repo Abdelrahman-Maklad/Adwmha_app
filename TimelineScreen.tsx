@@ -720,13 +720,10 @@ function buildPrayerProgressById(
   return PRAYER_PROGRESS_CHECKPOINTS.reduce<Record<string, boolean>>((acc, prayer) => {
     const checkpoint = checkpointsForDay.find((cp: any) => cp.id === prayer.id);
     const tasks = checkpoint?.tasks ?? [];
-    acc[prayer.id] =
-      tasks.length > 0 &&
-      tasks.every((task: any) => {
-        if (!completionState[task.id]) return false;
-        const checklist = task.checklist ?? [];
-        return checklist.every((item: any) => Boolean(completionState[item.id]));
-      });
+    const mainPrayerTask =
+      tasks.find((task: any) => task?.type === "main_task") ??
+      tasks.find((task: any) => String(task?.name ?? "").includes("صلاة"));
+    acc[prayer.id] = Boolean(mainPrayerTask && completionState[mainPrayerTask.id]);
     return acc;
   }, {});
 }
@@ -3093,7 +3090,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 20,
+    borderRadius: 999,
     borderWidth: 1,
   },
   checkboxSmall: {
