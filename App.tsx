@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { AppState } from "react-native";
 import RootNavigator from "./navigation/RootNavigator";
 import NotificationSetupModal from "./components/NotificationSetupModal";
+import UpdateModal from "./components/UpdateModal";
 import {
   getThemePreference,
   hasSeenNotificationSetupPrompt,
@@ -14,10 +15,12 @@ import {
   ensureScheduleNext48h,
   requestNotifPermissions,
 } from "./services/checkpointNotificationScheduler";
+import { useAppUpdate } from "./hooks/useAppUpdate";
 
 export default function App() {
   const [themePreference, setThemePreferenceState] = useState<ThemePreference>("dark");
   const [notificationSetupVisible, setNotificationSetupVisible] = useState(false);
+  const { isVisible, updateInfo, runUpdateCheck, onUpdatePress, onLaterPress } = useAppUpdate();
 
   const resolvedTheme = resolveThemePreference(themePreference);
   const theme = getThemeTokens(resolvedTheme);
@@ -39,6 +42,8 @@ export default function App() {
           }, 0);
         }
       } catch {}
+      // Startup update-check is connected here by design.
+      void runUpdateCheck();
       try {
         await ensureScheduleNext48h("startup");
       } catch {}
@@ -60,7 +65,7 @@ export default function App() {
       active = false;
       subscription.remove();
     };
-  }, []);
+  }, [runUpdateCheck]);
 
   const closePrompt = async () => {
     setNotificationSetupVisible(false);
@@ -80,6 +85,13 @@ export default function App() {
         theme={theme}
         onClose={() => void closePrompt()}
         onOpenSettings={openSettingsFromPrompt}
+      />
+      <UpdateModal
+        visible={isVisible}
+        theme={theme}
+        updateInfo={updateInfo}
+        onUpdatePress={() => void onUpdatePress()}
+        onLaterPress={onLaterPress}
       />
     </>
   );

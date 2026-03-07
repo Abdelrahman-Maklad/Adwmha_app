@@ -51,6 +51,7 @@
       "expo-audio"
     ],
     "extra": {
+      "updateCheckUrl": "https://adhan-dua-download.lovable.app/app-version.json",
       "eas": {
         "projectId": "dd80a141-ae7f-45b0-af23-09212e58330c"
       }
