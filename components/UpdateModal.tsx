@@ -28,25 +28,25 @@ export default function UpdateModal({
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={isMandatory ? () => {} : onLaterPress}
+      onRequestClose={onLaterPress}
     >
       <View style={[styles.backdrop, { backgroundColor: theme.modalBackdrop }]}>
         <View style={[styles.card, { backgroundColor: theme.modalCardBg, borderColor: theme.modalCardBorder }]}>
-          <Text style={[styles.title, { color: theme.textPrimary }]}>Update Available</Text>
+          <Text style={[styles.title, { color: theme.textPrimary }]}>تحديث جديد متاح</Text>
 
           <Text style={[styles.versionLine, { color: theme.textSecondary }]}>
-            Current: {updateInfo.currentVersion}
+            الإصدار الحالي: {updateInfo.currentVersion}
           </Text>
           <Text style={[styles.versionLine, { color: theme.textSecondary }]}>
-            Latest: {updateInfo.latestVersion ?? "-"}
+            أحدث إصدار: {updateInfo.latestVersion ?? "-"}
           </Text>
 
           {updateInfo.releaseNotes.length > 0 ? (
             <View style={styles.notesWrap}>
-              <Text style={[styles.notesTitle, { color: theme.textPrimary }]}>What is new</Text>
+              <Text style={[styles.notesTitle, { color: theme.textPrimary }]}>ماذا يتضمن التحديث</Text>
               {updateInfo.releaseNotes.map((note, index) => (
                 <Text key={`${note}-${index}`} style={[styles.noteItem, { color: theme.textSecondary }]}>
-                  - {note}
+                  • {note}
                 </Text>
               ))}
             </View>
@@ -58,11 +58,11 @@ export default function UpdateModal({
                 style={[styles.buttonSecondary, { borderColor: theme.inputBorder }]}
                 onPress={onLaterPress}
               >
-                <Text style={[styles.buttonSecondaryText, { color: theme.textPrimary }]}>Later</Text>
+                <Text style={[styles.buttonSecondaryText, { color: theme.textPrimary }]}>لاحقًا</Text>
               </Pressable>
             ) : null}
             <Pressable style={styles.buttonPrimary} onPress={onUpdatePress}>
-              <Text style={styles.buttonPrimaryText}>Update</Text>
+              <Text style={styles.buttonPrimaryText}>تحديث</Text>
             </Pressable>
           </View>
         </View>
@@ -86,10 +86,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontFamily: FONT_FAMILY.cairoBold,
+    textAlign: "right",
   },
   versionLine: {
     fontSize: 14,
     fontFamily: FONT_FAMILY.cairoRegular,
+    textAlign: "right",
   },
   notesWrap: {
     marginTop: 6,
@@ -98,15 +100,17 @@ const styles = StyleSheet.create({
   notesTitle: {
     fontSize: 14,
     fontFamily: FONT_FAMILY.cairoSemiBold,
+    textAlign: "right",
   },
   noteItem: {
     fontSize: 13,
     fontFamily: FONT_FAMILY.cairoRegular,
     lineHeight: 19,
+    textAlign: "right",
   },
   actions: {
     marginTop: 10,
-    flexDirection: "row",
+    flexDirection: "row-reverse",
     gap: 8,
   },
   buttonPrimary: {
