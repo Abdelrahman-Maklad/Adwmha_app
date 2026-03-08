@@ -680,15 +680,6 @@ const PRAYER_COUNTDOWN_ORDER = [
   { key: "isha", label: "العشاء" },
 ] as const;
 
-function subtractOneMinute(hhmm: string): string {
-  const normalized = extractHHmm(hhmm);
-  if (!normalized) return hhmm;
-  const [h, m] = normalized.split(":").map(Number);
-  const total = (h * 60 + m - 1 + 24 * 60) % (24 * 60);
-  const hour = Math.floor(total / 60);
-  const minute = total % 60;
-  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-}
 const FONTS = {
   regular: FONT_FAMILY.cairoRegular,
   semiBold: FONT_FAMILY.cairoSemiBold,
@@ -1212,12 +1203,10 @@ export default function TimelineScreen() {
   const resolveTodayPrayerTimeForCheckpoint = async (cp: any): Promise<string> => {
     const fallbackTime = String(cp?.notification_time || cp?.time || "08:00");
     const checkpointId = String(cp?.id ?? "");
-    const applyLeadTime = (time: string) =>
-      PRAYER_CHECKPOINT_IDS.has(checkpointId) ? subtractOneMinute(time) : time;
     if (!locationCoords) {
       const todayKey = gregorianDayKey(new Date());
       const cached = await getPrayerTimesWithoutLocation(todayKey);
-      if (!cached) return applyLeadTime(fallbackTime);
+      if (!cached) return fallbackTime;
 
       const timeByCheckpointId: Record<string, string> = {
         cp_fajr: cached.fajr,
@@ -1229,7 +1218,7 @@ export default function TimelineScreen() {
         cp_lastthird: calculateLastThirdFromTimes(cached.isha, cached.fajr),
       };
 
-      return applyLeadTime(timeByCheckpointId[checkpointId] ?? fallbackTime);
+      return timeByCheckpointId[checkpointId] ?? fallbackTime;
     }
 
     const todayKey = gregorianDayKey(new Date());
@@ -1238,7 +1227,7 @@ export default function TimelineScreen() {
       locationCoords.longitude,
       todayKey
     );
-    if (!times) return applyLeadTime(fallbackTime);
+    if (!times) return fallbackTime;
 
     const timeByCheckpointId: Record<string, string> = {
       cp_fajr: times.fajr,
@@ -1250,7 +1239,7 @@ export default function TimelineScreen() {
       cp_lastthird: calculateLastThirdFromTimes(times.isha, times.fajr),
     };
 
-    return applyLeadTime(timeByCheckpointId[checkpointId] ?? fallbackTime);
+    return timeByCheckpointId[checkpointId] ?? fallbackTime;
   };
 
   useEffect(() => {

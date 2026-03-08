@@ -95,8 +95,7 @@ export default function SettingsScreen({ navigation }: Props) {
       <View style={styles.content}>
         <View style={[styles.card, { backgroundColor: theme.dayCardBg, borderColor: theme.dayCardBorder }]}>
           <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Contact Us</Text>
-          <Text style={[styles.value, { color: theme.textSecondary }]}>Email: adomhateam@gmail.com</Text>
-          <Text style={[styles.value, { color: theme.textSecondary }]}>Phone: +20 100 000 0000</Text>
+          <Text style={[styles.value, { color: theme.textSecondary }]}>Email: adomha.info@gmail.com</Text>
         </View>
 
         <View style={[styles.card, { backgroundColor: theme.dayCardBg, borderColor: theme.dayCardBorder }]}>

@@ -66,7 +66,6 @@ const KEY_SCHEDULED_IDS = "notif_checkpoints_scheduled_ids_v1";
 const KEY_LAST_PLANNED_DAY = "notif_checkpoints_last_planned_local_day_v1";
 const KEY_SETTINGS_HASH = "notif_checkpoints_settings_hash_v1";
 const KEY_PERMS_PROMPTED = "notif_permissions_prompted_v1";
-const PRAYER_LEAD_TIME_IDS = new Set(["cp_fajr", "cp_dhuhr", "cp_asr", "cp_maghrib", "cp_isha"]);
 const PRAYER_SOUND_CHECKPOINT_IDS = new Set([
   "cp_fajr",
   "cp_dhuhr",
@@ -130,10 +129,6 @@ function calculateLastThird(isha: string, fajr: string): string {
   const nightDuration =
     fajrMinutes > ishaMinutes ? fajrMinutes - ishaMinutes : 24 * 60 - ishaMinutes + fajrMinutes;
   return fromMinutes(ishaMinutes + (2 * nightDuration) / 3);
-}
-
-function subtractMinute(hhmm: string): string {
-  return fromMinutes(toMinutes(hhmm) - 1);
 }
 
 function parseRepeatDays(value: unknown): string[] {
@@ -357,22 +352,19 @@ export async function buildNext48hSchedule(
   for (const day of candidates) {
     const dayTimes = await getPrayerTimesByDay(day, settings);
     const dayPrayerTimesById: Record<string, Date> = {
-      cp_fajr: toDateAtTime(day, subtractMinute(dayTimes.fajr)),
+      cp_fajr: toDateAtTime(day, dayTimes.fajr),
       cp_sunrise: toDateAtTime(day, dayTimes.sunrise),
-      cp_dhuhr: toDateAtTime(day, subtractMinute(dayTimes.dhuhr)),
-      cp_asr: toDateAtTime(day, subtractMinute(dayTimes.asr)),
-      cp_maghrib: toDateAtTime(day, subtractMinute(dayTimes.maghrib)),
-      cp_isha: toDateAtTime(day, subtractMinute(dayTimes.isha)),
+      cp_dhuhr: toDateAtTime(day, dayTimes.dhuhr),
+      cp_asr: toDateAtTime(day, dayTimes.asr),
+      cp_maghrib: toDateAtTime(day, dayTimes.maghrib),
+      cp_isha: toDateAtTime(day, dayTimes.isha),
       cp_lastthird: toDateAtTime(day, calculateLastThird(dayTimes.isha, dayTimes.fajr)),
     };
 
     for (const rule of rules) {
       if (!shouldScheduleRuleOnDate(rule, day)) continue;
 
-      let fireDate = getCheckpointFireDate(rule, day, dayPrayerTimesById);
-      if (PRAYER_LEAD_TIME_IDS.has(rule.checkpointId) && !dayPrayerTimesById[rule.checkpointId]) {
-        fireDate = new Date(getCheckpointFireDate(rule, day, dayPrayerTimesById).getTime() - 60_000);
-      }
+      const fireDate = getCheckpointFireDate(rule, day, dayPrayerTimesById);
       const fireAtUtcMs = fireDate.getTime();
       if (fireAtUtcMs <= windowStart || fireAtUtcMs > windowEnd) continue;
 
