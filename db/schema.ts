@@ -65,7 +65,7 @@ const taskSchema = {
     enable_disable_notifications: { type: "boolean" },
     notification_time: { type: "string" },   // "" | "api" | "HH:mm"
     notification_title: { type: "string" },
-    notification_sound: { type: "string" },  // "" | "adhan.mp3" ...
+    notification_sound: { type: "string" },  // "" | "adhan.wav" | "default"
     notification_text: { type: "string" },
 
     icon: { type: "string" },   // can be "" if using image
