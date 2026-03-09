@@ -1,6 +1,5 @@
-import { RootStackParamList } from "../navigation/types";
-import { getSurahAyat } from "./quranData";
-import { QuranAyahViewModel } from "./quranTypes";
+﻿import { RootStackParamList } from "../navigation/types";
+import { getSurahText } from "./quranData";
 
 type QuranRouteParams = RootStackParamList["QuranReference"]["quran"];
 
@@ -11,49 +10,28 @@ function clampInt(value: unknown, fallback: number, min = 1) {
   return normalized < min ? min : normalized;
 }
 
-export async function getAyatBySurah(surah: number): Promise<QuranAyahViewModel[]> {
+export async function getAyatBySurah(surah: number): Promise<string> {
   const safeSurah = clampInt(surah, 1, 1);
-  return getSurahAyat(safeSurah);
+  return getSurahText(safeSurah);
 }
 
-export async function getAyahBySurahAndNumber(
-  surah: number,
-  ayahNo: number
-): Promise<QuranAyahViewModel | null> {
-  const safeSurah = clampInt(surah, 1, 1);
-  const safeAyah = clampInt(ayahNo, 1, 1);
-  const rows = getSurahAyat(safeSurah);
-  return rows.find((row) => row.ayahNumber === safeAyah) ?? null;
+export async function getAyahBySurahAndNumber(surah: number, ayahNo: number): Promise<string> {
+  return getAyatBySurah(surah);
 }
 
-export async function getAyatRangeBySurah(
-  surah: number,
-  from: number,
-  to: number
-): Promise<QuranAyahViewModel[]> {
-  const safeSurah = clampInt(surah, 1, 1);
-  const safeFrom = clampInt(from, 1, 1);
-  const safeTo = clampInt(to, safeFrom, 1);
-  const fromAyah = Math.min(safeFrom, safeTo);
-  const toAyah = Math.max(safeFrom, safeTo);
-  return getSurahAyat(safeSurah).filter((row) => row.ayahNumber >= fromAyah && row.ayahNumber <= toAyah);
+export async function getAyatRangeBySurah(surah: number, from: number, to: number): Promise<string> {
+  return getAyatBySurah(surah);
 }
 
-export async function fetchQuranByRouteParams(
-  params: QuranRouteParams
-): Promise<QuranAyahViewModel[]> {
+export async function fetchQuranByRouteParams(params: QuranRouteParams): Promise<string> {
   const safeSurah = clampInt(params?.surah, 1, 1);
 
   if (params?.mode === "single") {
-    const ayah = clampInt(params.ayah, 1, 1);
-    const row = await getAyahBySurahAndNumber(safeSurah, ayah);
-    return row ? [row] : [];
+    return getAyahBySurahAndNumber(safeSurah, clampInt(params.ayah, 1, 1));
   }
 
   if (params?.mode === "range") {
-    const from = clampInt(params.from, 1, 1);
-    const to = clampInt(params.to, from, 1);
-    return getAyatRangeBySurah(safeSurah, from, to);
+    return getAyatRangeBySurah(safeSurah, clampInt(params.from, 1, 1), clampInt(params.to, 1, 1));
   }
 
   return getAyatBySurah(safeSurah);
