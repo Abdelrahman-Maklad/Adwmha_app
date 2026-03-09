@@ -14,10 +14,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.chatgptsilica.Adomha"
+      "bundleIdentifier": "com.chatgptsilica.Adomha.dev"
     },
     "android": {
-      "package": "com.chatgptsilica.Adomha",
+      "package": "com.chatgptsilica.Adomha.dev",
       "icon": "./assets/app-icon.png",
       "versionCode": 6,
       "adaptiveIcon": {
