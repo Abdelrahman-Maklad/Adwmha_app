@@ -28,7 +28,7 @@ export default function UpdateModal({
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={onLaterPress}
+      onRequestClose={isMandatory ? undefined : onLaterPress}
     >
       <View style={[styles.backdrop, { backgroundColor: theme.modalBackdrop }]}>
         <View style={[styles.card, { backgroundColor: theme.modalCardBg, borderColor: theme.modalCardBorder }]}>

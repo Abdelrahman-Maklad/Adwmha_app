@@ -170,19 +170,18 @@ export async function checkForAppUpdate(): Promise<UpdateCheckResult> {
 
   let isUpdateAvailable = false;
 
-  // Prefer build/versionCode for update decision.
-  if (currentVersionCode !== null && payload.versionCode !== undefined) {
-    isUpdateAvailable = currentVersionCode < payload.versionCode;
-  } else if (latestVersion) {
+  // Prefer semantic latestVersion for update decision.
+  if (latestVersion) {
     isUpdateAvailable = compareSemanticVersion(currentVersion, latestVersion) < 0;
+  } else if (currentVersionCode !== null && payload.versionCode !== undefined) {
+    isUpdateAvailable = currentVersionCode < payload.versionCode;
   }
 
   const belowMinSupported =
     Boolean(payload.minSupportedVersion) &&
     compareSemanticVersion(currentVersion, payload.minSupportedVersion as string) < 0;
 
-  // Product decision: updates are always optional in-app.
-  const isMandatory = false;
+  const isMandatory = Boolean(payload.mandatory) || belowMinSupported;
 
   return {
     isUpdateAvailable: isUpdateAvailable || belowMinSupported,

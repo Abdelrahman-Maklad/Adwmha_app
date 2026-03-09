@@ -1852,6 +1852,7 @@ export default function TimelineScreen() {
               data={monthDayCards}
               extraData={selectedGregorianDayKey}
               horizontal
+              inverted
               showsHorizontalScrollIndicator={false}
               getItemLayout={getDayCardItemLayout}
               keyExtractor={(day) => day.gregorianKey}
