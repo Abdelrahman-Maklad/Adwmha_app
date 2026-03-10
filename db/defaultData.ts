@@ -12,7 +12,7 @@ type Times = {
 const CP_SOUND = "default";
 
 export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
-  const makeCpNotifText = (name: string) => ` حي علي الصلاة حي علي الفلاح 🕌`;
+  const makeCpNotifText = (name: string) => `وما تقرب إلي عبدي بشيء 🥇أحب إلي مما افترضت عليه🥇 ، وما يزال عبدي يتقرب إلي بالنوافل حتى أحبه ، فإذا أحببته كنت سمعه الذي يسمع به ، وبصره الذي يبصر به ، ويده التي يبطش بها ، ورجله التي يمشي بها ، وإن سألني لأعطينه ، ولئن استعاذني لأعيذنه`;
   const makeCpNotifTitle = (name: string) => `حان وقت صلاة ${name}`;
 
   return [
@@ -167,9 +167,9 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           notifications: false,
           enable_disable_notifications: true,
           notification_time: "",
-          notification_title: "",
+          notification_title: "تذكير : أذكار الصباح",
           notification_sound: "",
-          notification_text: "",
+          notification_text: "الَّذِينَ آمَنُوا وَتَطْمَئِنُّ قُلُوبُهُم بِذِكْرِ اللَّهِ ۗ أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ",
 
           icon: "sun",
           image: "",
@@ -197,9 +197,9 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
       notifications: true,
       enable_disable_notifications: true,
       notification_time: times.sunrise,
-      notification_title: makeCpNotifTitle("الشروق"),
+      notification_title: "حان وقت الشروق",
       notification_sound: CP_SOUND,
-      notification_text: makeCpNotifText("الشروق"),
+      notification_text: "احرص علي صلاة الضحى (بعد شروق الشمس بثلث ساعة الي قبل الظهر بربع ساعة)",
 
       color: "#F4A261",
       icon: "sunrise",
@@ -223,9 +223,9 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           notifications: false,
           enable_disable_notifications: true,
           notification_time: "",
-          notification_title: "",
+          notification_title: "تذكير : صلاة الضحي",
           notification_sound: "",
-          notification_text: "",
+          notification_text: "يُصْبِحُ عَلَىَ كُلّ سُلاَمَىَ مِنْ أَحَدِكُمْ صَدَقَةٌ. فَكُلّ تَسْبِيحَةٍ صَدَقَةٌ. وَكُلّ تَحْمِيدَةٍ صَدَقَةٌ. وَكُلّ تَهْلِيلَةٍ صَدَقَةٌ. وَكُلّ تَكْبِيرَةٍ صَدَقَةٌ. وَأَمْرٌ بِالْمَعْرُوفِ صَدَقَةٌ. وَنَهْيٌ عَنِ الْمُنْكَرِ صَدَقَةٌ. وَيُجَزِئُ، مِنْ ذَلِكَ، رَكْعَتَانِ يَرْكَعُهُمَا مِنَ الضّحَىَ",
 
           icon: "sun",
           image: "",
@@ -451,9 +451,9 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
           notifications: false,
           enable_disable_notifications: true,
           notification_time: "",
-          notification_title: "?????: ????? ??????",
+          notification_title: "تذكير : أذكار المساء",
           notification_sound: "",
-          notification_text: "حان وقت أذكار المساء",
+          notification_text: "الَّذِينَ آمَنُوا وَتَطْمَئِنُّ قُلُوبُهُم بِذِكْرِ اللَّهِ ۗ أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ",
 
           icon: "sun",
           image: "",
@@ -678,9 +678,9 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
       notifications: true,
       enable_disable_notifications: true,
       notification_time: lastThirdTime,
-      notification_title: makeCpNotifTitle("الثلث الأخير من الليل"),
+      notification_title: "حان وقت الثلث الأخير من الليل",
       notification_sound: CP_SOUND,
-      notification_text: makeCpNotifText("الثلث الأخير من الليل"),
+      notification_text: "ينزل ربنا إلى السماء الدنيا كل ليلة حين يبقى ثلث الليل الآخر، فيقول: من يدعوني فأستجيب له، من يسألني فأعطيه، من يستغفرني فأغفر له.. حتى ينفجر الفجر",
 
       color: "#7B6CF6",
       icon: "star",

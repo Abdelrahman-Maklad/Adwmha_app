@@ -1,5 +1,6 @@
 // db/sqlite.ts
 import * as SQLite from "expo-sqlite";
+import { applyDatabasePatches } from "../services/databasePatches";
 
 let _db: SQLite.SQLiteDatabase | null = null;
 let _dbOpenPromise: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -104,6 +105,9 @@ export async function getDb() {
       value TEXT NOT NULL
     );
   `);
+
+    // Run data patches after schema/table bootstrap and before any app reads.
+    await applyDatabasePatches(db);
 
     _db = db;
     return db;

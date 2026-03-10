@@ -17,7 +17,7 @@
       "bundleIdentifier": "com.chatgptsilica.Adomha.dev"
     },
     "android": {
-      "package": "com.chatgptsilica.Adomha.dev",
+      "package": "com.chatgptsilica.Adomha",
       "icon": "./assets/app-icon.png",
       "versionCode": 6,
       "adaptiveIcon": {
