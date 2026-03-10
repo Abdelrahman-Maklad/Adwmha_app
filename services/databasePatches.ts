@@ -1,7 +1,7 @@
 ﻿import type { SQLiteDatabase } from "expo-sqlite";
 
 const DB_PATCH_VERSION_KEY = "db_patch_version";
-export const LATEST_DB_PATCH_VERSION = 5;
+export const LATEST_DB_PATCH_VERSION = 6;
 
 type CheckpointFieldPatch = {
   checkpointId: string;
@@ -271,9 +271,24 @@ async function runPatchV5(db: SQLiteDatabase): Promise<void> {
 
   await applyTaskFieldPatches(db, taskPatches);
 }
+async function runPatchV6(db: SQLiteDatabase): Promise<void> {
+
+  const taskPatches: TaskFieldPatch[] = [
+    {
+      checkpointId: "cp_sunrise",
+      taskId: "t_duha",
+      field: "name",
+      oldValue: "صلاة الضح",
+      newValue: "صلاة الضحي",
+    },
+  ];
+
+  await applyTaskFieldPatches(db, taskPatches);
+}
 const PATCH_RUNNERS: Record<number, PatchRunner> = {
   4: runPatchV4,
   5: runPatchV5,
+  6: runPatchV6,
 };
 
 export async function applyDatabasePatches(db: SQLiteDatabase): Promise<void> {
