@@ -315,29 +315,27 @@ type NextPrayerSummary = {
 };
 
 function buildNextPrayerSummary({
-  selectedDayTimes,
-  selectedGregorianDayKey,
-  isSelectedDayToday,
+  todayDayTimes,
+  todayGregorianDayKey,
   tomorrowDayTimes,
   timeFormatPreference,
   nowMs,
 }: {
-  selectedDayTimes: PrayerTimes | null;
-  selectedGregorianDayKey: string;
-  isSelectedDayToday: boolean;
+  todayDayTimes: PrayerTimes | null;
+  todayGregorianDayKey: string;
   tomorrowDayTimes: PrayerTimes | null;
   timeFormatPreference: TimeFormatPreference;
   nowMs: number;
 }): NextPrayerSummary | null {
-  if (!selectedDayTimes || !selectedGregorianDayKey) return null;
+  if (!todayDayTimes || !todayGregorianDayKey) return null;
 
   const prayers = PRAYER_COUNTDOWN_ORDER.map((prayer) => {
-    const time = String(selectedDayTimes[prayer.key as keyof PrayerTimes] ?? "");
+    const time = String(todayDayTimes[prayer.key as keyof PrayerTimes] ?? "");
     return {
       key: prayer.key,
       label: prayer.label,
       time,
-      date: dateAtDayKeyTime(selectedGregorianDayKey, time),
+      date: dateAtDayKeyTime(todayGregorianDayKey, time),
     };
   }).filter(
     (
@@ -359,9 +357,9 @@ function buildNextPrayerSummary({
   let countdownTarget = nextPrayer?.date ?? null;
   let countdownTime = nextPrayer?.time ?? null;
 
-  if (!nextPrayer && isSelectedDayToday) {
+  if (!nextPrayer) {
     const tomorrowDayKey = gregorianDayKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
-    const fallbackTomorrowFajr = tomorrowDayTimes?.fajr ?? selectedDayTimes.fajr;
+    const fallbackTomorrowFajr = tomorrowDayTimes?.fajr ?? todayDayTimes.fajr;
     const fajrDate = dateAtDayKeyTime(tomorrowDayKey, fallbackTomorrowFajr);
     nextPrayer = {
       key: "fajr",
@@ -388,25 +386,21 @@ function buildNextPrayerSummary({
     time: countdownTime ?? nextPrayer.time,
     formattedTime: formatTimeByPreference(countdownTime ?? nextPrayer.time, timeFormatPreference),
     countdownLabel:
-      isSelectedDayToday && countdownTarget
-        ? formatCountdownDuration(countdownTarget.getTime() - now.getTime())
-        : null,
-    isLive: Boolean(isSelectedDayToday && countdownTarget),
+      countdownTarget ? formatCountdownDuration(countdownTarget.getTime() - now.getTime()) : null,
+    isLive: Boolean(countdownTarget),
   };
 }
 
 function CountdownCard({
-  selectedDayTimes,
-  selectedGregorianDayKey,
-  isSelectedDayToday,
+  todayDayTimes,
+  todayGregorianDayKey,
   tomorrowDayTimes,
   timeFormatPreference,
   theme,
   onAddCheckpoint,
 }: {
-  selectedDayTimes: PrayerTimes | null;
-  selectedGregorianDayKey: string;
-  isSelectedDayToday: boolean;
+  todayDayTimes: PrayerTimes | null;
+  todayGregorianDayKey: string;
   tomorrowDayTimes: PrayerTimes | null;
   timeFormatPreference: TimeFormatPreference;
   theme: ReturnType<typeof getThemeTokens>;
@@ -415,29 +409,27 @@ function CountdownCard({
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
-    if (!isSelectedDayToday || !selectedDayTimes) return;
+    if (!todayDayTimes) return;
     setNowMs(Date.now());
     const timer = setInterval(() => {
       setNowMs(Date.now());
     }, 1000);
     return () => clearInterval(timer);
-  }, [isSelectedDayToday, selectedDayTimes]);
+  }, [todayDayTimes]);
 
   const nextPrayerSummary = useMemo(
     () =>
       buildNextPrayerSummary({
-        selectedDayTimes,
-        selectedGregorianDayKey,
-        isSelectedDayToday,
+        todayDayTimes,
+        todayGregorianDayKey,
         tomorrowDayTimes,
         timeFormatPreference,
         nowMs,
       }),
     [
-      isSelectedDayToday,
       nowMs,
-      selectedDayTimes,
-      selectedGregorianDayKey,
+      todayDayTimes,
+      todayGregorianDayKey,
       timeFormatPreference,
       tomorrowDayTimes,
     ]
@@ -456,7 +448,7 @@ function CountdownCard({
           <Landmark size={12} color={theme.iconPrimary} />
           <View style={styles.countdownInlineTextGroup}>
             <Text style={[styles.countdownInlineLabel, { color: theme.textMuted }]} numberOfLines={1}>
-              الصلاة القادمة:
+              الوقت القادم:
             </Text>
             <Text style={[styles.countdownInlineValue, { color: theme.textPrimary }]} numberOfLines={1}>
               {nextPrayerSummary.label}
@@ -467,7 +459,7 @@ function CountdownCard({
           <Bell size={11} color={theme.iconPrimary} />
           <View style={styles.countdownInlineTextGroup}>
             <Text style={[styles.countdownInlineLabel, { color: theme.textMuted }]} numberOfLines={1}>
-              موعد الاذان:
+              الموعد:
             </Text>
             <Text style={[styles.countdownInlineValue, { color: theme.textPrimary }]} numberOfLines={1}>
               {nextPrayerSummary.formattedTime}
@@ -738,12 +730,13 @@ export default function TimelineScreen() {
     null
   );
   const [selectedDayTimes, setSelectedDayTimes] = useState<PrayerTimes | null>(null);
+  const [todayDayTimes, setTodayDayTimes] = useState<PrayerTimes | null>(null);
   const [tomorrowDayTimes, setTomorrowDayTimes] = useState<PrayerTimes | null>(null);
   const [dayPrayerProgressByDay, setDayPrayerProgressByDay] = useState<
     Record<string, Record<string, boolean>>
   >({});
 
-  const [expandedCheckpointId, setExpandedCheckpointId] = useState<string | null>(null);
+  const [expandedCheckpointIds, setExpandedCheckpointIds] = useState<Set<string>>(new Set());
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
 
   const [doneState, setDoneState] = useState<Record<string, boolean>>({});
@@ -789,18 +782,10 @@ export default function TimelineScreen() {
   const completionRequestRef = useRef(0);
   const timesRequestRef = useRef(0);
   const dayPrayerProgressRequestRef = useRef(0);
-  const locationCoordsRef = useRef<{ latitude: number; longitude: number } | null>(null);
   const selectedDayKeyRef = useRef("");
 
   const resolvedTheme = resolveThemePreference(themePreference);
   const theme = getThemeTokens(resolvedTheme);
-  const isSelectedDayToday =
-    Boolean(selectedGregorianDayKey) && selectedGregorianDayKey === todayGregorianDayKey;
-
-  useEffect(() => {
-    locationCoordsRef.current = locationCoords;
-  }, [locationCoords]);
-
   useEffect(() => {
     selectedDayKeyRef.current = selectedGregorianDayKey;
   }, [selectedGregorianDayKey]);
@@ -869,6 +854,7 @@ export default function TimelineScreen() {
         setLocationLabel(result.locationLabel);
         setLocationCoords(result.location);
         setSelectedDayTimes(result.times);
+        setTodayDayTimes(result.times);
 
         let cards: HijriMonthDayCard[] = [];
         if (result.location) {
@@ -921,6 +907,7 @@ export default function TimelineScreen() {
             setDateInfo(refreshed.date);
             setLocationLabel(refreshed.locationLabel);
             setLocationCoords(refreshed.location);
+            setTodayDayTimes(refreshed.times);
             if (selectedDayKeyRef.current === "" || selectedDayKeyRef.current === todayKey) {
               setSelectedDayTimes(refreshed.times);
             }
@@ -973,7 +960,6 @@ export default function TimelineScreen() {
     const completionReqId = ++completionRequestRef.current;
     const timesReqId = ++timesRequestRef.current;
     const selectedDay = selectedGregorianDayKey;
-    const currentLocation = locationCoordsRef.current;
     let active = true;
 
     (async () => {
@@ -992,17 +978,6 @@ export default function TimelineScreen() {
       }
       if (timesReqId === timesRequestRef.current) {
         setSelectedDayTimes(cachedDayTimes ?? null);
-      }
-
-      if (!currentLocation) return;
-      const freshDayTimes = await fetchPrayerTimesForDate(
-        currentLocation.latitude,
-        currentLocation.longitude,
-        selectedDay
-      );
-      if (!active) return;
-      if (timesReqId === timesRequestRef.current && freshDayTimes) {
-        setSelectedDayTimes(freshDayTimes);
       }
     })();
 
@@ -1030,6 +1005,31 @@ export default function TimelineScreen() {
       active = false;
     };
   }, [selectedGregorianDayKey, locationCoords]);
+
+  useEffect(() => {
+    if (!todayGregorianDayKey) return;
+    let active = true;
+    (async () => {
+      const cachedTodayTimes = await getPrayerTimesWithoutLocation(todayGregorianDayKey);
+      if (active && cachedTodayTimes) {
+        setTodayDayTimes(cachedTodayTimes);
+      }
+
+      if (!locationCoords) return;
+      const freshTodayTimes = await fetchPrayerTimesForDate(
+        locationCoords.latitude,
+        locationCoords.longitude,
+        todayGregorianDayKey
+      );
+      if (active && freshTodayTimes) {
+        setTodayDayTimes(freshTodayTimes);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [locationCoords, todayGregorianDayKey]);
 
   useEffect(() => {
     if (monthDayCards.length === 0) {
@@ -1062,10 +1062,10 @@ export default function TimelineScreen() {
     return () => {
       active = false;
     };
-  }, [checkpoints, monthDayCards]);
+  }, [monthDayCards]);
 
   useEffect(() => {
-    if (!isSelectedDayToday || !selectedDayTimes || !todayGregorianDayKey) {
+    if (!todayDayTimes || !todayGregorianDayKey) {
       setTomorrowDayTimes(null);
       return;
     }
@@ -1109,7 +1109,7 @@ export default function TimelineScreen() {
     return () => {
       active = false;
     };
-  }, [isSelectedDayToday, locationCoords, selectedDayTimes, todayGregorianDayKey]);
+  }, [locationCoords, todayDayTimes, todayGregorianDayKey]);
 
   const totalPoints = useMemo(() => {
     let total = 0;
@@ -1245,9 +1245,11 @@ export default function TimelineScreen() {
   useEffect(() => {
     if (!selectedGregorianDayKey) return;
     if (selectedGregorianDayKey !== todayGregorianDayKey) {
-      setExpandedCheckpointId(null);
+      setExpandedCheckpointIds(new Set());
       return;
     }
+
+    if (expandedCheckpointIds.size > 0) return;
 
     const now = new Date();
     const nowMinutes = now.getHours() * 60 + now.getMinutes();
@@ -1263,11 +1265,17 @@ export default function TimelineScreen() {
       }
     });
 
-    setExpandedCheckpointId(bestId);
-  }, [checkpointsForSelectedDay, selectedGregorianDayKey, todayGregorianDayKey]);
+    if (!bestId) return;
+    setExpandedCheckpointIds(new Set([bestId]));
+  }, [checkpointsForSelectedDay, selectedGregorianDayKey, todayGregorianDayKey, expandedCheckpointIds.size]);
 
   const toggleCheckpoint = useCallback((checkpointId: string) => {
-    setExpandedCheckpointId((prev) => (prev === checkpointId ? null : checkpointId));
+    setExpandedCheckpointIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(checkpointId)) next.delete(checkpointId);
+      else next.add(checkpointId);
+      return next;
+    });
   }, []);
 
   const toggleTask = useCallback((checkpointId: string, taskId: string) => {
@@ -1838,9 +1846,8 @@ export default function TimelineScreen() {
         />
         <View style={styles.topContentRow}>
           <MemoCountdownCard
-            selectedDayTimes={selectedDayTimes}
-            selectedGregorianDayKey={selectedGregorianDayKey}
-            isSelectedDayToday={isSelectedDayToday}
+            todayDayTimes={todayDayTimes}
+            todayGregorianDayKey={todayGregorianDayKey}
             tomorrowDayTimes={tomorrowDayTimes}
             timeFormatPreference={timeFormatPreference}
             theme={theme}
@@ -1877,7 +1884,7 @@ export default function TimelineScreen() {
         renderItem={({ item: cp, index }) => {
           const CpIcon = ICON_MAP[String(cp.icon || "").toLowerCase()];
           const color = cp.color || "#7B6CF6";
-          const isCheckpointExpanded = expandedCheckpointId === cp.id;
+          const isCheckpointExpanded = expandedCheckpointIds.has(cp.id);
           const tasks = cp.tasks ?? [];
           const isLastCheckpoint = index === checkpointsForSelectedDay.length - 1;
 
