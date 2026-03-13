@@ -1,7 +1,7 @@
 ﻿import type { SQLiteDatabase } from "expo-sqlite";
 
 const DB_PATCH_VERSION_KEY = "db_patch_version";
-export const LATEST_DB_PATCH_VERSION = 6;
+export const LATEST_DB_PATCH_VERSION = 1;
 
 type CheckpointFieldPatch = {
   checkpointId: string;
@@ -141,7 +141,7 @@ async function applyTaskFieldPatches(db: SQLiteDatabase, patches: TaskFieldPatch
   }
 }
 
-async function runPatchV4(db: SQLiteDatabase): Promise<void> {
+async function runPatchV1(db: SQLiteDatabase): Promise<void> {
   // Real patch derived from current db/defaultData.ts changes.
   // Guarded oldValue/newValue updates keep user-customized values safe.
   const checkpointPatches: CheckpointFieldPatch[] = [
@@ -150,7 +150,7 @@ async function runPatchV4(db: SQLiteDatabase): Promise<void> {
       field: "notification_text",
       oldValue: " حي علي الصلاة حي علي الفلاح 🕌",
       newValue:
-        "وما تقرب إلي عبدي بشيء 🥇أحب إلي مما افترضت عليه🥇 ، وما يزال عبدي يتقرب إلي بالنوافل حتى أحبه ، فإذا أحببته كنت سمعه الذي يسمع به ، وبصره الذي يبصر به ، ويده التي يبطش بها ، ورجله التي يمشي بها ، وإن سألني لأعطينه ، ولئن استعاذني لأعيذنه",
+        "ما تقرَّبَ إليَّ عبدي بشيءٍ أفضل من أداء ما افترضتُ عليْهِ، وما يزالُ يتقرَّبُ عبدي إليَّ بالنَّوافلِ حتَّى أحبَّهُ، فإذا أحببتُهُ كنتُ سمعَهُ الَّذي يسمعُ بِهِ، وبصرَهُ الَّذي يبصرُ بِهِ، ويدَهُ الَّتي يبطشُ بِها، ولئن سألني لأعطينَّهُ، ولئن دعاني لأجيبنه، ولئن استعاذَني لأعيذنَّهُ",
     },
     {
       checkpointId: "cp_sunrise",
@@ -169,28 +169,28 @@ async function runPatchV4(db: SQLiteDatabase): Promise<void> {
       field: "notification_text",
       oldValue: " حي علي الصلاة حي علي الفلاح 🕌",
       newValue:
-        "وما تقرب إلي عبدي بشيء 🥇أحب إلي مما افترضت عليه🥇 ، وما يزال عبدي يتقرب إلي بالنوافل حتى أحبه ، فإذا أحببته كنت سمعه الذي يسمع به ، وبصره الذي يبصر به ، ويده التي يبطش بها ، ورجله التي يمشي بها ، وإن سألني لأعطينه ، ولئن استعاذني لأعيذنه",
+        "ما تقرَّبَ إليَّ عبدي بشيءٍ أفضل من أداء ما افترضتُ عليْهِ، وما يزالُ يتقرَّبُ عبدي إليَّ بالنَّوافلِ حتَّى أحبَّهُ، فإذا أحببتُهُ كنتُ سمعَهُ الَّذي يسمعُ بِهِ، وبصرَهُ الَّذي يبصرُ بِهِ، ويدَهُ الَّتي يبطشُ بِها، ولئن سألني لأعطينَّهُ، ولئن دعاني لأجيبنه، ولئن استعاذَني لأعيذنَّهُ",
     },
     {
       checkpointId: "cp_asr",
       field: "notification_text",
       oldValue: " حي علي الصلاة حي علي الفلاح 🕌",
       newValue:
-        "وما تقرب إلي عبدي بشيء 🥇أحب إلي مما افترضت عليه🥇 ، وما يزال عبدي يتقرب إلي بالنوافل حتى أحبه ، فإذا أحببته كنت سمعه الذي يسمع به ، وبصره الذي يبصر به ، ويده التي يبطش بها ، ورجله التي يمشي بها ، وإن سألني لأعطينه ، ولئن استعاذني لأعيذنه",
+        "ما تقرَّبَ إليَّ عبدي بشيءٍ أفضل من أداء ما افترضتُ عليْهِ، وما يزالُ يتقرَّبُ عبدي إليَّ بالنَّوافلِ حتَّى أحبَّهُ، فإذا أحببتُهُ كنتُ سمعَهُ الَّذي يسمعُ بِهِ، وبصرَهُ الَّذي يبصرُ بِهِ، ويدَهُ الَّتي يبطشُ بِها، ولئن سألني لأعطينَّهُ، ولئن دعاني لأجيبنه، ولئن استعاذَني لأعيذنَّهُ",
     },
     {
       checkpointId: "cp_maghrib",
       field: "notification_text",
       oldValue: " حي علي الصلاة حي علي الفلاح 🕌",
       newValue:
-        "وما تقرب إلي عبدي بشيء 🥇أحب إلي مما افترضت عليه🥇 ، وما يزال عبدي يتقرب إلي بالنوافل حتى أحبه ، فإذا أحببته كنت سمعه الذي يسمع به ، وبصره الذي يبصر به ، ويده التي يبطش بها ، ورجله التي يمشي بها ، وإن سألني لأعطينه ، ولئن استعاذني لأعيذنه",
+        "ما تقرَّبَ إليَّ عبدي بشيءٍ أفضل من أداء ما افترضتُ عليْهِ، وما يزالُ يتقرَّبُ عبدي إليَّ بالنَّوافلِ حتَّى أحبَّهُ، فإذا أحببتُهُ كنتُ سمعَهُ الَّذي يسمعُ بِهِ، وبصرَهُ الَّذي يبصرُ بِهِ، ويدَهُ الَّتي يبطشُ بِها، ولئن سألني لأعطينَّهُ، ولئن دعاني لأجيبنه، ولئن استعاذَني لأعيذنَّهُ",
     },
     {
       checkpointId: "cp_isha",
       field: "notification_text",
       oldValue: " حي علي الصلاة حي علي الفلاح 🕌",
       newValue:
-        "وما تقرب إلي عبدي بشيء 🥇أحب إلي مما افترضت عليه🥇 ، وما يزال عبدي يتقرب إلي بالنوافل حتى أحبه ، فإذا أحببته كنت سمعه الذي يسمع به ، وبصره الذي يبصر به ، ويده التي يبطش بها ، ورجله التي يمشي بها ، وإن سألني لأعطينه ، ولئن استعاذني لأعيذنه",
+        "ما تقرَّبَ إليَّ عبدي بشيءٍ أفضل من أداء ما افترضتُ عليْهِ، وما يزالُ يتقرَّبُ عبدي إليَّ بالنَّوافلِ حتَّى أحبَّهُ، فإذا أحببتُهُ كنتُ سمعَهُ الَّذي يسمعُ بِهِ، وبصرَهُ الَّذي يبصرُ بِهِ، ويدَهُ الَّتي يبطشُ بِها، ولئن سألني لأعطينَّهُ، ولئن دعاني لأجيبنه، ولئن استعاذَني لأعيذنَّهُ",
     },
     {
       checkpointId: "cp_lastthird",
@@ -203,7 +203,19 @@ async function runPatchV4(db: SQLiteDatabase): Promise<void> {
       field: "notification_text",
       oldValue: " حي علي الصلاة حي علي الفلاح 🕌",
       newValue:
-        "ينزل ربنا إلى السماء الدنيا كل ليلة حين يبقى ثلث الليل الآخر، فيقول: من يدعوني فأستجيب له، من يسألني فأعطيه، من يستغفرني فأغفر له.. حتى ينفجر الفجر",
+        "ينزلُ اللهُ كلَّ ليلةٍ إلى السماءِ الدنيا ، حين يبقى ثلثُ الليلِ الآخرِ ، فيقولُ: من يدعوني فأستجيبُ له ، من يسألني فأعطيه ، من يستغفرُني فأغفرُ له",
+    },
+    {
+      checkpointId: "cp_fajr",
+      field: "color",
+      oldValue: "#94A3B8",
+      newValue: "#78716C",
+    },
+    {
+      checkpointId: "cp_dhuhr",
+      field: "color",
+      oldValue: "#FACC15",
+      newValue: "#EAB308",
     },
   ];
 
@@ -257,38 +269,9 @@ async function runPatchV4(db: SQLiteDatabase): Promise<void> {
   await applyTaskFieldPatches(db, taskPatches);
 }
 
-async function runPatchV5(db: SQLiteDatabase): Promise<void> {
 
-  const taskPatches: TaskFieldPatch[] = [
-    {
-      checkpointId: "cp_asr",
-      taskId: "t_duha",
-      field: "name",
-      oldValue: "صلاة الضح",
-      newValue: "صلاة الضحي",
-    },
-  ];
-
-  await applyTaskFieldPatches(db, taskPatches);
-}
-async function runPatchV6(db: SQLiteDatabase): Promise<void> {
-
-  const taskPatches: TaskFieldPatch[] = [
-    {
-      checkpointId: "cp_sunrise",
-      taskId: "t_duha",
-      field: "name",
-      oldValue: "صلاة الضح",
-      newValue: "صلاة الضحي",
-    },
-  ];
-
-  await applyTaskFieldPatches(db, taskPatches);
-}
 const PATCH_RUNNERS: Record<number, PatchRunner> = {
-  4: runPatchV4,
-  5: runPatchV5,
-  6: runPatchV6,
+  1: runPatchV1,
 };
 
 export async function applyDatabasePatches(db: SQLiteDatabase): Promise<void> {

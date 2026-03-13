@@ -23,7 +23,8 @@ type Props = NativeStackScreenProps<RootStackParamList, "Settings">;
 export default function SettingsScreen({ navigation }: Props) {
   const [themePreference, setThemePreferenceState] = useState<ThemePreference>("dark");
   const [adhanSound, setAdhanSound] = useState<PrayerAdhanSound>("default");
-  const [timeFormatPreference, setTimeFormatPreferenceState] = useState<TimeFormatPreference>("24h");
+  const [timeFormatPreference, setTimeFormatPreferenceState] =
+    useState<TimeFormatPreference>("system");
   const [notificationSetupVisible, setNotificationSetupVisible] = useState(false);
   const resolvedTheme = resolveThemePreference(themePreference);
   const theme = getThemeTokens(resolvedTheme);
@@ -95,7 +96,9 @@ export default function SettingsScreen({ navigation }: Props) {
       <View style={styles.content}>
         <View style={[styles.card, { backgroundColor: theme.dayCardBg, borderColor: theme.dayCardBorder }]}>
           <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Contact Us</Text>
-          <Text style={[styles.value, { color: theme.textSecondary }]}>Email: adomha.info@gmail.com</Text>
+          <Text style={[styles.value, { color: theme.textSecondary }]}>
+            Email: adomha.info@gmail.com
+          </Text>
         </View>
 
         <View style={[styles.card, { backgroundColor: theme.dayCardBg, borderColor: theme.dayCardBorder }]}>
@@ -109,63 +112,84 @@ export default function SettingsScreen({ navigation }: Props) {
         </View>
 
         <View style={[styles.card, { backgroundColor: theme.dayCardBg, borderColor: theme.dayCardBorder }]}>
-          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Adhan Notification Sound</Text>
-          <View style={styles.soundRow}>
+          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+            Adhan Notification Sound
+          </Text>
+          <View style={styles.optionRow}>
             <Pressable
               style={[
-                styles.soundOption,
+                styles.optionButton,
                 { borderColor: theme.dayCardBorder },
                 adhanSound === "default" && { backgroundColor: theme.dayCardSelectedBg },
               ]}
               onPress={() => void onSelectSound("default")}
             >
-              <Text style={[styles.soundText, { color: theme.textPrimary }]}>Default</Text>
+              <Text style={[styles.optionText, { color: theme.textPrimary }]}>Default</Text>
             </Pressable>
             <Pressable
               style={[
-                styles.soundOption,
+                styles.optionButton,
                 { borderColor: theme.dayCardBorder },
                 adhanSound === "adhan" && { backgroundColor: theme.dayCardSelectedBg },
               ]}
               onPress={() => void onSelectSound("adhan")}
             >
-              <Text style={[styles.soundText, { color: theme.textPrimary }]}>Adhan</Text>
+              <Text style={[styles.optionText, { color: theme.textPrimary }]}>Adhan</Text>
             </Pressable>
           </View>
-          <Text style={[styles.value, { color: theme.textMuted }]}>Applied to prayer checkpoint reminders only.</Text>
+          <Text style={[styles.value, { color: theme.textMuted }]}>
+            Applied to prayer checkpoint reminders only.
+          </Text>
         </View>
 
         <View style={[styles.card, { backgroundColor: theme.dayCardBg, borderColor: theme.dayCardBorder }]}>
-          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>تنسيق الوقت</Text>
-          <View style={styles.soundRow}>
+          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Time Format</Text>
+          <View style={styles.optionRow}>
             <Pressable
               style={[
-                styles.soundOption,
+                styles.optionButton,
+                { borderColor: theme.dayCardBorder },
+                timeFormatPreference === "system" && { backgroundColor: theme.dayCardSelectedBg },
+              ]}
+              onPress={() => void onSelectTimeFormat("system")}
+            >
+              <Text style={[styles.optionText, { color: theme.textPrimary }]}>System</Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.optionButton,
                 { borderColor: theme.dayCardBorder },
                 timeFormatPreference === "24h" && { backgroundColor: theme.dayCardSelectedBg },
               ]}
               onPress={() => void onSelectTimeFormat("24h")}
             >
-              <Text style={[styles.soundText, { color: theme.textPrimary }]}>24 ساعة</Text>
+              <Text style={[styles.optionText, { color: theme.textPrimary }]}>24 Hour</Text>
             </Pressable>
             <Pressable
               style={[
-                styles.soundOption,
+                styles.optionButton,
                 { borderColor: theme.dayCardBorder },
                 timeFormatPreference === "12h" && { backgroundColor: theme.dayCardSelectedBg },
               ]}
               onPress={() => void onSelectTimeFormat("12h")}
             >
-              <Text style={[styles.soundText, { color: theme.textPrimary }]}>12 ساعة</Text>
+              <Text style={[styles.optionText, { color: theme.textPrimary }]}>12 Hour</Text>
             </Pressable>
           </View>
+          <Text style={[styles.value, { color: theme.textMuted }]}>
+            System uses the device hour format unless you override it here.
+          </Text>
         </View>
 
         <View style={[styles.card, { backgroundColor: theme.dayCardBg, borderColor: theme.dayCardBorder }]}>
-          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>إعدادات الإشعارات المهمة</Text>
-          <Text style={[styles.value, { color: theme.textSecondary }]}>افتح الإرشادات وخطوات تفعيل الإشعارات في الخلفية.</Text>
+          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+            Notification Setup Help
+          </Text>
+          <Text style={[styles.value, { color: theme.textSecondary }]}>
+            Open the guidance and activation steps for background notifications.
+          </Text>
           <Pressable style={styles.actionButton} onPress={() => setNotificationSetupVisible(true)}>
-            <Text style={styles.actionButtonText}>عرض الإرشادات</Text>
+            <Text style={styles.actionButtonText}>Open Guide</Text>
           </Pressable>
         </View>
       </View>
@@ -208,17 +232,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  soundRow: {
+  optionRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
   },
-  soundOption: {
+  optionButton: {
     borderWidth: 1,
     borderRadius: 12,
     paddingVertical: 8,
     paddingHorizontal: 12,
   },
-  soundText: {
+  optionText: {
     fontSize: 14,
     fontWeight: "600",
   },

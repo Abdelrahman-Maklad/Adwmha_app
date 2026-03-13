@@ -37,7 +37,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
       notification_sound: CP_SOUND,
       notification_text: makeCpNotifText("الفجر"),
 
-      color: "#7B6CF6",
+      color: "#78716C",
       icon: "moon",
       image: "",
       redirect: "",
@@ -257,7 +257,7 @@ export function buildDefaultCheckpoints(times: Times, lastThirdTime: string) {
       notification_sound: CP_SOUND,
       notification_text: makeCpNotifText("الظهر"),
 
-      color: "#48CAE4",
+      color: "#EAB308",
       icon: "sun",
       image: "",
       redirect: "",

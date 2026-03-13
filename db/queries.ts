@@ -2,7 +2,7 @@
 import { getDb } from "./sqlite";
 type ThemePreference = "light" | "dark";
 export type PrayerAdhanSound = "default" | "adhan";
-export type TimeFormatPreference = "12h" | "24h";
+export type TimeFormatPreference = "system" | "12h" | "24h";
 
 function normalizeArabicDayName(day: string): string {
   return day
@@ -436,8 +436,8 @@ export async function setPrayerAdhanSoundPreference(value: PrayerAdhanSound): Pr
 
 export async function getTimeFormatPreference(): Promise<TimeFormatPreference> {
   const raw = await getAppSetting(TIME_FORMAT_PREF_KEY);
-  if (raw === "12h" || raw === "24h") return raw;
-  return "24h";
+  if (raw === "system" || raw === "12h" || raw === "24h") return raw;
+  return "system";
 }
 
 export async function setTimeFormatPreference(value: TimeFormatPreference): Promise<void> {
