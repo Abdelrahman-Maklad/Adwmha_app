@@ -24,6 +24,7 @@ yarn add react-quran
 pnpm add react-quran
 ```
 
+
 ## Features
 
 - 📦 **High-Quality Text Rendering:**

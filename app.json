@@ -19,7 +19,7 @@
     "android": {
       "package": "com.chatgptsilica.Adomha.dev",
       "icon": "./assets/app-icon.png",
-      "versionCode": 6,
+      "versionCode": 4,
       "adaptiveIcon": {
         "foregroundImage": "./assets/app-icon.png",
         "backgroundColor": "#111827"
