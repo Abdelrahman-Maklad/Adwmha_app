@@ -15,6 +15,7 @@ import {
   ensureScheduleNext48h,
   requestNotifPermissions,
 } from "./services/checkpointNotificationScheduler";
+import { rebuildNotificationsIfNeededAfterPatch } from "./services/notificationRebuilder";
 import { useAppUpdate } from "./hooks/useAppUpdate";
 
 export default function App() {
@@ -45,6 +46,7 @@ export default function App() {
       // Startup update-check is connected here by design.
       void runUpdateCheck();
       try {
+        await rebuildNotificationsIfNeededAfterPatch();
         await ensureScheduleNext48h("startup");
       } catch {}
     })();

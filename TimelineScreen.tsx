@@ -778,6 +778,7 @@ export default function TimelineScreen() {
   const dayCardsListRef = useRef<FlatList<HijriMonthDayCard> | null>(null);
   const pendingDayScrollIndexRef = useRef<number | null>(null);
   const didInitialDayAutoScrollRef = useRef(false);
+  const previousSelectedGregorianDayKeyRef = useRef("");
   const checkpointsRequestRef = useRef(0);
   const completionRequestRef = useRef(0);
   const timesRequestRef = useRef(0);
@@ -788,6 +789,18 @@ export default function TimelineScreen() {
   const theme = getThemeTokens(resolvedTheme);
   useEffect(() => {
     selectedDayKeyRef.current = selectedGregorianDayKey;
+  }, [selectedGregorianDayKey]);
+
+  useEffect(() => {
+    if (!selectedGregorianDayKey) return;
+
+    const previousDayKey = previousSelectedGregorianDayKeyRef.current;
+    if (previousDayKey && previousDayKey !== selectedGregorianDayKey) {
+      setExpandedCheckpointIds(new Set());
+      setExpandedTasks(new Set());
+    }
+
+    previousSelectedGregorianDayKeyRef.current = selectedGregorianDayKey;
   }, [selectedGregorianDayKey]);
 
   useEffect(() => {
@@ -1244,10 +1257,7 @@ export default function TimelineScreen() {
 
   useEffect(() => {
     if (!selectedGregorianDayKey) return;
-    if (selectedGregorianDayKey !== todayGregorianDayKey) {
-      setExpandedCheckpointIds(new Set());
-      return;
-    }
+    if (selectedGregorianDayKey !== todayGregorianDayKey) return;
 
     if (expandedCheckpointIds.size > 0) return;
 
@@ -1479,7 +1489,11 @@ export default function TimelineScreen() {
               }
 
               setCheckpoints((prev) => prev.filter((checkpoint: any) => checkpoint.id !== cp.id));
-              setExpandedCheckpointId((prev) => (prev === cp.id ? null : prev));
+              setExpandedCheckpointIds((prev) => {
+                const next = new Set(prev);
+                next.delete(cp.id);
+                return next;
+              });
               setExpandedTasks((prev) => {
                 const next = new Set<string>();
                 prev.forEach((key) => {

@@ -1,6 +1,7 @@
 ﻿import type { SQLiteDatabase } from "expo-sqlite";
 
 const DB_PATCH_VERSION_KEY = "db_patch_version";
+const PATCH_NOTIFICATION_REBUILD_KEY = "notif_rebuild_required_patch_v1";
 export const LATEST_DB_PATCH_VERSION = 1;
 
 type CheckpointFieldPatch = {
@@ -292,6 +293,10 @@ export async function applyDatabasePatches(db: SQLiteDatabase): Promise<void> {
       });
 
       await setCurrentPatchVersion(db, targetVersion);
+      await db.runAsync(
+        "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?);",
+        [PATCH_NOTIFICATION_REBUILD_KEY, String(targetVersion)]
+      );
       console.log(`[db-patch] Applied patch v${targetVersion}`);
     } catch (error) {
       // Do not crash app startup; stop at first failed patch.
