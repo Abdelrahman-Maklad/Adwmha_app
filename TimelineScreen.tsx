@@ -212,6 +212,51 @@ function AnimatedChevron({ expanded, color }: { expanded: boolean; color: string
   );
 }
 
+function AnimatedTimelineAddButton({
+  borderColor,
+  backgroundColor,
+  iconColor,
+  onPress,
+}: {
+  borderColor: string;
+  backgroundColor: string;
+  iconColor: string;
+  onPress: () => void;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const animateTo = useCallback(
+    (toValue: number) => {
+      Animated.spring(scale, {
+        toValue,
+        useNativeDriver: true,
+        friction: 5,
+        tension: 220,
+      }).start();
+    },
+    [scale]
+  );
+
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Pressable
+        style={[
+          styles.timelineAddButton,
+          {
+            borderColor,
+            backgroundColor,
+          },
+        ]}
+        onPress={onPress}
+        onPressIn={() => animateTo(0.9)}
+        onPressOut={() => animateTo(1)}
+      >
+        <Plus size={15} color={iconColor} />
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 function CalendarHeader({
   dateInfo,
   locationLabel,
@@ -397,14 +442,12 @@ function CountdownCard({
   tomorrowDayTimes,
   timeFormatPreference,
   theme,
-  onAddCheckpoint,
 }: {
   todayDayTimes: PrayerTimes | null;
   todayGregorianDayKey: string;
   tomorrowDayTimes: PrayerTimes | null;
   timeFormatPreference: TimeFormatPreference;
   theme: ReturnType<typeof getThemeTokens>;
-  onAddCheckpoint: () => void;
 }) {
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -443,61 +486,58 @@ function CountdownCard({
         styles.countdownCard,
       ]}
     >
-      <View style={styles.countdownTopRow}>
-        <View style={styles.countdownInlineItem}>
-          <Landmark size={12} color={theme.iconPrimary} />
-          <View style={styles.countdownInlineTextGroup}>
-            <Text style={[styles.countdownInlineLabel, { color: theme.textMuted }]} numberOfLines={1}>
-              الوقت القادم:
-            </Text>
+      <View
+        style={[
+          styles.countdownSummary,
+        ]}
+      >
+        <View style={styles.countdownLabelRow}>
+          <View style={styles.countdownMetric}>
+            <View style={styles.countdownMetricLabelWrap}>
+              <Landmark size={12} color={theme.iconPrimary} />
+              <Text style={[styles.countdownInlineLabel, { color: theme.textMuted }]} numberOfLines={1}>
+                المحطة القادمة
+              </Text>
+            </View>
+          </View>
+          <View style={[styles.countdownStick, { backgroundColor: withAlpha(theme.dayCardBorder, 0.4) }]} />
+          <View style={styles.countdownMetric}>
+            <View style={styles.countdownMetricLabelWrap}>
+              <Bell size={11} color={theme.iconPrimary} />
+              <Text style={[styles.countdownInlineLabel, { color: theme.textMuted }]} numberOfLines={1}>
+                الموعد
+              </Text>
+            </View>
+          </View>
+          <View style={[styles.countdownStick, { backgroundColor: withAlpha(theme.dayCardBorder, 0.4) }]} />
+          <View style={styles.countdownMetric}>
+            <View style={styles.countdownMetricLabelWrap}>
+              <Clock size={11} color={theme.iconPrimary} />
+              <Text style={[styles.countdownInlineLabel, { color: theme.textMuted }]} numberOfLines={1}>
+                الوقت المتبقي
+              </Text>
+            </View>
+          </View>
+        </View>
+        <View style={styles.countdownValueRow}>
+          <View style={styles.countdownMetric}>
             <Text style={[styles.countdownInlineValue, { color: theme.textPrimary }]} numberOfLines={1}>
               {nextPrayerSummary.label}
             </Text>
           </View>
-        </View>
-        <View style={styles.countdownInlineItem}>
-          <Bell size={11} color={theme.iconPrimary} />
-          <View style={styles.countdownInlineTextGroup}>
-            <Text style={[styles.countdownInlineLabel, { color: theme.textMuted }]} numberOfLines={1}>
-              الموعد:
-            </Text>
+          <View style={[styles.countdownStick, { backgroundColor: withAlpha(theme.dayCardBorder, 0.4) }]} />
+          <View style={styles.countdownMetric}>
             <Text style={[styles.countdownInlineValue, { color: theme.textPrimary }]} numberOfLines={1}>
               {nextPrayerSummary.formattedTime}
             </Text>
           </View>
-        </View>
-      </View>
-      <View style={styles.countdownBottomRow}>
-        <View
-          style={[
-            styles.countdownInlineItem,
-            styles.countdownInlineItemSingle,
-            { borderColor: withAlpha(theme.dayCardBorder, 0.28) },
-          ]}
-        >
-          <Clock size={11} color={theme.iconPrimary} />
-          <View style={[styles.countdownInlineTextGroup, styles.countdownInlineTextGroupSingle]}>
-            <Text style={[styles.countdownInlineLabel, { color: theme.textMuted }]} numberOfLines={1}>
-              الوقت المتبقي:
-            </Text>
+          <View style={[styles.countdownStick, { backgroundColor: withAlpha(theme.dayCardBorder, 0.4) }]} />
+          <View style={styles.countdownMetric}>
             <Text style={[styles.countdownInlineValue, { color: theme.iconPrimary }]} numberOfLines={1}>
               {nextPrayerSummary.countdownLabel ?? nextPrayerSummary.formattedTime}
             </Text>
           </View>
         </View>
-        <Pressable
-          style={[
-            styles.countdownAddButton,
-            {
-              borderColor: theme.actionButtonBorder,
-              backgroundColor: theme.actionButtonBg,
-            },
-          ]}
-          onPress={onAddCheckpoint}
-        >
-          <Plus size={13} color={theme.iconPrimary} />
-          <Text style={[styles.countdownAddButtonText, { color: theme.textPrimary }]}>إضافة مرحلة</Text>
-        </Pressable>
       </View>
     </View>
   );
@@ -1865,7 +1905,6 @@ export default function TimelineScreen() {
             tomorrowDayTimes={tomorrowDayTimes}
             timeFormatPreference={timeFormatPreference}
             theme={theme}
-            onAddCheckpoint={openAddCheckpointModal}
           />
           <View style={styles.dayCardsRail}>
             <FlatList
@@ -1894,7 +1933,26 @@ export default function TimelineScreen() {
         windowSize={9}
         updateCellsBatchingPeriod={40}
         removeClippedSubviews
-        contentContainerStyle={{ paddingVertical: 20, paddingHorizontal: 14, paddingBottom: 28 }}
+        contentContainerStyle={{ paddingTop: 8, paddingHorizontal: 14, paddingBottom: 28 }}
+        ListHeaderComponent={
+          <View style={styles.checkpointAddRow}>
+            <View style={styles.timelineCol}>
+              <AnimatedTimelineAddButton
+                borderColor={theme.actionButtonBorder}
+                backgroundColor={theme.actionButtonBg}
+                iconColor={theme.iconPrimary}
+                onPress={openAddCheckpointModal}
+              />
+              <View
+                style={[
+                  styles.timelineAddStem,
+                  { backgroundColor: withAlpha(theme.primary, 0.3) },
+                ]}
+              />
+            </View>
+            <View style={styles.contentCol} />
+          </View>
+        }
         renderItem={({ item: cp, index }) => {
           const CpIcon = ICON_MAP[String(cp.icon || "").toLowerCase()];
           const color = cp.color || "#7B6CF6";
@@ -2748,72 +2806,54 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     justifyContent: "center",
   },
-  countdownTopRow: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 4,
-    marginBottom: 2,
+  countdownSummary: {
+    paddingVertical: 2,
+    paddingHorizontal: 2,
+    gap: 1,
   },
-  countdownBottomRow: {
+  countdownLabelRow: {
     flexDirection: "row-reverse",
-    alignItems: "center",
+    alignItems: "flex-end",
     justifyContent: "space-between",
-    gap: 6,
+    gap: 5,
   },
-  countdownInlineItem: {
+  countdownValueRow: {
+    flexDirection: "row-reverse",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 5,
+    paddingBottom: 2,
+  },
+  countdownMetric: {
     flex: 1,
     minWidth: 0,
-    flexDirection: "row-reverse",
+  },
+  countdownStick: {
+    width: 1,
+    height: 14,
+    alignSelf: "center",
+  },
+  countdownMetricLabelWrap: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-start",
-    gap: 3,
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-  },
-  countdownInlineItemSingle: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 999,
-    justifyContent: "flex-start",
-  },
-  countdownInlineTextGroup: {
-    flex: 1,
-    flexDirection: "row-reverse",
-    alignItems: "baseline",
-    justifyContent: "flex-start",
-    gap: 4,
-    minWidth: 0,
-  },
-  countdownInlineTextGroupSingle: {
-    justifyContent: "flex-start",
+    justifyContent: "space-between",
+    gap: 2,
+    alignSelf: "stretch",
   },
   countdownInlineLabel: {
-    fontSize: 10,
+    fontSize: 9,
     fontFamily: FONTS.semiBold,
     textAlign: "right",
     flexShrink: 1,
+    lineHeight: 11,
   },
   countdownInlineValue: {
     fontSize: 14,
     fontFamily: FONTS.bold,
     textAlign: "right",
     flexShrink: 1,
-  },
-  countdownAddButton: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-  },
-  countdownAddButtonText: {
-    fontSize: 11,
-    fontFamily: FONTS.semiBold,
-    textAlign: "center",
+    alignSelf: "flex-end",
+    lineHeight: 16,
   },
   topRow: {
     display: "flex",
@@ -2931,6 +2971,12 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 22,
   },
+  checkpointAddRow: {
+    flexDirection: "row-reverse",
+    alignItems: "flex-start",
+    gap: 8,
+    marginBottom: 1,
+  },
 
   timelineCol: {
     width: 28,
@@ -2963,6 +3009,20 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  timelineAddButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  timelineAddStem: {
+    width: 2,
+    height: 10,
+    borderRadius: 2,
+    marginTop: 1,
   },
 
   contentCol: {
